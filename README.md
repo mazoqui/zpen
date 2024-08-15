@@ -52,8 +52,10 @@ To compile and run **zPen**, you need to have the **Xlib** development libraries
 
 Compile
 
-`cd src`
-`gcc zpen.c -o zpen -lX11 -lm`
+```
+cd src
+gcc zpen.c -o zpen -lX11 -lm
+```
 
 ## Usage
 
