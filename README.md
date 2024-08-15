@@ -67,7 +67,7 @@ After compiling, run the program using:
 
 You may want to add a shortcut 
 
-`xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>i' -s $PWD/zpen`
+`xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>p' -s $PWD/zpen`
 
 ### Key Controls
 
