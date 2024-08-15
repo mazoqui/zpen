@@ -61,6 +61,12 @@ After compiling, run the program using:
 
 `./zpen`
 
+### XFCE Users (like me)
+
+You may want to add a shortcut 
+
+`xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>i' -s $PWD/zpen`
+
 ### Key Controls
 
 - `p`: Select the freehand pen tool.
