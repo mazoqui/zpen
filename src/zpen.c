@@ -27,7 +27,9 @@
 #define THICKNESS 3
 #define UNDO_MAX 20
 #define ARROW_SIZE 20
-#define FONT "-*-*-*-*-*-*-60-*-*-*-*-*-iso8859-*"
+// xlsfonts | grep courier
+// #define FONT "-*-*-*-*-*-*-60-*-*-*-*-*-iso8859-*"
+#define FONT "*-helvetica-*-18-*"
 
 typedef struct
 {
@@ -90,7 +92,7 @@ void saveScreenshotAsPPM(XImage *image)
   }
 }
 
-void takeScreenshot(Display *d, Window w, int screen)
+void saveScreenshot(Display *d, Window w, int screen)
 {
   XImage *image;
   unsigned int width, height;
@@ -241,6 +243,20 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
   XDrawArc(d, w, gc, x0 - (int)(width / 2), y0 - (int)(width / 2), width, width, 0, 360 * 64);
 }
 
+// It requires zenity
+void userText(Display *d, Window w, GC gc, int x, int y)
+{
+  char buffer[128];
+  FILE *fp = popen("zenity --entry --title='Text input' --text='Input:'", "r");
+  if (fp == NULL)
+    return;
+  fgets(buffer, sizeof(buffer), fp);
+  pclose(fp);
+  XFontStruct *ft = XLoadQueryFont(d, FONT);
+  XSetFont(d, gc, ft->fid);
+  XDrawString(d, w, gc, x, y, buffer, strlen(buffer) - 1);
+  return;
+}
 /**
  * Initializes undo levels that will contain "screenshots" of the state of the undo
  */
@@ -276,6 +292,10 @@ int main()
   GC gcPreDraw;        // To pre-draw the shape before painting it
   XPoint rect[2];      // 2 points to draw a rectangle
   XPoint pointPreDraw; // initial incorrect values, so as not to paint it without having the first point chosen
+
+  // Text input
+  KeySym key;     /* a dealie-bob to handle KeyPress Events */
+  char text[255]; /* a char buffer for KeyPress Events */
 
   // Freehand Pen
   char shape = 'p';
@@ -522,9 +542,17 @@ int main()
         shape = 'l';
         p = 0;
       }
+      else if (e.xkey.keycode == 41 /* f save screenshot to file save*/)
+      {
+        saveScreenshot(d, w, screen);
+      }
       else if (e.xkey.keycode == 39 /* s screenshot*/)
       {
-        takeScreenshot(d, w, screen);
+        system("xfce4-screenshooter -r -c");
+      }
+      else if (e.xkey.keycode == 28 /* t inject text*/)
+      {
+        userText(d, w, gc, e.xbutton.x, e.xbutton.y);
       }
       else if (e.xkey.keycode == 65 /* space next color*/)
       {
