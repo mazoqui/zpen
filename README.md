@@ -52,14 +52,22 @@ To compile and run **zPen**, you need to have the **Xlib** development libraries
 
 Compile
 
-`cd src`
-`gcc zpen.c -o zpen -lX11 -lm`
+```
+cd src
+gcc zpen.c -o zpen -lX11 -lm
+```
 
 ## Usage
 
 After compiling, run the program using:
 
 `./zpen`
+
+### XFCE Users (like me)
+
+You may want to add a shortcut 
+
+`xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>p' -s $PWD/zpen`
 
 ### Key Controls
 
