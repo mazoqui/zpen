@@ -268,6 +268,13 @@ void initUndo(Pixmap *p, Display *d, Window w, int screen, unsigned int width, u
   }
 }
 
+void bye(Display *d, Window w)
+{
+  XUndefineCursor(d, w);
+  XCloseDisplay(d);
+  exit(0);
+}
+
 ////////////////////////
 // MAIN
 ////////////////////////
@@ -359,7 +366,6 @@ int main()
   while (True)
   {
     XNextEvent(d, &e);
-
     switch (e.type)
     {
     case ButtonPress: /* Initial position of the tool */
@@ -377,7 +383,6 @@ int main()
     case ButtonRelease: /* End position of the tool */
       rect[p].x = e.xbutton.x;
       rect[p].y = e.xbutton.y;
-
       switch (shape)
       {
       case 'p':
@@ -517,7 +522,11 @@ int main()
       // xmodmap -pke # all keys
       // https://stackoverflow.com/questions/12343987/convert-ascii-character-to-x11-keycode/25771958#25771958
       // https://gist.github.com/javiercantero/7753445
-      if (e.xkey.keycode == 54 /* c cicle*/)
+      if (e.xkey.keycode == 0x09 /* ESC */)
+      {
+        bye(d, w);
+      }
+      else if (e.xkey.keycode == 54 /* c cicle*/)
       {
         shape = 'c';
         p = 0;
@@ -549,6 +558,7 @@ int main()
       else if (e.xkey.keycode == 39 /* s screenshot*/)
       {
         system("xfce4-screenshooter -r -c");
+        bye(d, w);
       }
       else if (e.xkey.keycode == 28 /* t inject text*/)
       {
@@ -608,12 +618,6 @@ int main()
           // restore the saved background
           XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
         }
-      }
-      else
-      {
-        XUndefineCursor(d, w);
-        XCloseDisplay(d);
-        exit(0);
       }
     }
   }
