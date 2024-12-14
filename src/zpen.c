@@ -4,7 +4,8 @@
   @author: Marco Aurelio Zoqui <marco_at_zoqui_dot_com>
   @version: 0.1
 */
-
+// requires scrot and xclip for screenshots
+// sudo apt install scrot xclip
 // compile:
 // gcc zpen.c -o zpen -lX11 -lm
 
@@ -600,7 +601,10 @@ int main()
         }
         else if (e.xkey.keycode == 39 /* s screenshot*/)
         {
-          system("xfce4-screenshooter -r -c");
+          // sudo apt install scrot xclip
+          system("rm -f /tmp/zpen.png");
+          system("scrot -s /tmp/zpen.png && xclip -selection clipboard -t image/png -i /tmp/zpen.png");
+          system("rm -f /tmp/zpen.png");
           bye(d, w);
         }
         else if (e.xkey.keycode == 28 /* t inject text*/)
