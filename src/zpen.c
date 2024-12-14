@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define PI 3.14159265358979323846 /* pi */
 #define MAX_POINTS 10000
@@ -88,7 +89,7 @@ void saveScreenshotAsPPM(XImage *image)
   int result = system(command);
   if (result == -1)
   {
-    perror("Erro ao executar o comando");
+    perror("Something went wrong");
   }
 }
 
@@ -243,20 +244,6 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
   XDrawArc(d, w, gc, x0 - (int)(width / 2), y0 - (int)(width / 2), width, width, 0, 360 * 64);
 }
 
-// It requires zenity
-void userText(Display *d, Window w, GC gc, int x, int y)
-{
-  char buffer[128];
-  FILE *fp = popen("zenity --entry --title='Text input' --text='Input:'", "r");
-  if (fp == NULL)
-    return;
-  fgets(buffer, sizeof(buffer), fp);
-  pclose(fp);
-  XFontStruct *ft = XLoadQueryFont(d, FONT);
-  XSetFont(d, gc, ft->fid);
-  XDrawString(d, w, gc, x, y, buffer, strlen(buffer) - 1);
-  return;
-}
 /**
  * Initializes undo levels that will contain "screenshots" of the state of the undo
  */
@@ -273,6 +260,13 @@ void bye(Display *d, Window w)
   XUndefineCursor(d, w);
   XCloseDisplay(d);
   exit(0);
+}
+
+void setCursor(Display *d, Window w, Cursor *cursor, int cursorId)
+{
+  *cursor = XCreateFontCursor(d, cursorId);
+  XDefineCursor(d, w, *cursor);
+  XSync(d, False);
 }
 
 ////////////////////////
@@ -299,10 +293,6 @@ int main()
   GC gcPreDraw;        // To pre-draw the shape before painting it
   XPoint rect[2];      // 2 points to draw a rectangle
   XPoint pointPreDraw; // initial incorrect values, so as not to paint it without having the first point chosen
-
-  // Text input
-  KeySym key;     /* a dealie-bob to handle KeyPress Events */
-  char text[255]; /* a char buffer for KeyPress Events */
 
   // Freehand Pen
   char shape = 'p';
@@ -359,9 +349,16 @@ int main()
   Pixmap undoStack[UNDO_MAX];
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
 
-  cursor = XCreateFontCursor(d, XC_pencil);
-  XDefineCursor(d, w, cursor);
-  XSync(d, False);
+  // https://tronche.com/gui/x/xlib/appendix/b/
+  setCursor(d, w, &cursor, XC_pencil);
+  // BEGIN Text input
+  char text[256] = {0}; /* a char buffer for KeyPress Events */
+  int l_text = 0;       // text length
+  int t_text = 0;       // text input flag (1 typing | 0 not typing)
+  int x_text = 0;       // initial x cursor position
+  int y_text = 0;
+  Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
+  // END Text input
 
   while (True)
   {
@@ -522,101 +519,153 @@ int main()
       // xmodmap -pke # all keys
       // https://stackoverflow.com/questions/12343987/convert-ascii-character-to-x11-keycode/25771958#25771958
       // https://gist.github.com/javiercantero/7753445
-      if (e.xkey.keycode == 0x09 /* ESC */)
+      if (t_text) // text typing
       {
-        bye(d, w);
+        KeySym key;
+        char ltext[25];
+        int n = XLookupString(&e.xkey, ltext, sizeof(ltext) - 1, &key, NULL);
+        ltext[n] = 0x00;
+        if (key == XK_Return)
+        {
+          l_text = 0;
+          t_text = 0;
+          *text = 0x00;
+          setCursor(d, w, &cursor, XC_pencil);
+        }
+        else if (key == XK_BackSpace && l_text > 0)
+        {
+          text[--l_text] = 0x00;
+          XClearWindow(d, w);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
+          XFlush(d);
+        }
+        else if (n > 0 && isprint(ltext[0]) && l_text < sizeof(text) - 1)
+        {
+          strcat(text, ltext);
+          l_text += n;
+          XFontStruct *ft = XLoadQueryFont(d, FONT);
+          XSetFont(d, gc, ft->fid);
+          XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
+        }
+        if (e.xkey.keycode == 0x09 /* ESC */)
+        {
+          t_text = 0;
+          l_text = 0;
+          *text = 0x00;
+          XClearWindow(d, w);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          setCursor(d, w, &cursor, XC_pencil);
+        }
       }
-      else if (e.xkey.keycode == 54 /* c cicle*/)
+      else // not typing
       {
-        shape = 'c';
-        p = 0;
-      }
-      else if (e.xkey.keycode == 27 /* r retangle*/)
-      {
-        shape = 'r';
-        p = 0;
-      }
-      else if (e.xkey.keycode == 33 /* p pen */)
-      {
-        shape = 'p';
-        p = 0;
-      }
-      else if (e.xkey.keycode == 38 /* a arrow*/)
-      {
-        shape = 'a';
-        p = 0;
-      }
-      else if (e.xkey.keycode == 46 /* l line */)
-      {
-        shape = 'l';
-        p = 0;
-      }
-      else if (e.xkey.keycode == 41 /* f save screenshot to file save*/)
-      {
-        saveScreenshot(d, w, screen);
-      }
-      else if (e.xkey.keycode == 39 /* s screenshot*/)
-      {
-        system("xfce4-screenshooter -r -c");
-        bye(d, w);
-      }
-      else if (e.xkey.keycode == 28 /* t inject text*/)
-      {
-        userText(d, w, gc, e.xbutton.x, e.xbutton.y);
-      }
-      else if (e.xkey.keycode == 65 /* space next color*/)
-      {
-        color_index = (color_index + 1) % MAX_COLORS;
-        XSetForeground(d, gc, color_list[color_index]);
-        XSetForeground(d, gcPreDraw, color_list[color_index]);
-      }
-      else if (e.xkey.keycode == 29 /* y yellow */)
-      {
-        color = 0xFFFF33;
-        XSetForeground(d, gc, color);
-        XSetForeground(d, gcPreDraw, color);
-      }
-      else if (e.xkey.keycode == 19 /* 0 (reset to red) */)
-      {
-        color = 0xFF3333;
-        XSetForeground(d, gc, color);
-        XSetForeground(d, gcPreDraw, color);
-      }
-      else if (e.xkey.keycode == 56 /* b blue */)
-      {
-        color = 0x3333FF;
-        XSetForeground(d, gc, color);
-      }
-      else if (e.xkey.keycode == 25 /* w white */)
-      {
-        color = 0xFFFFFF;
-        XSetForeground(d, gc, color);
-        XSetForeground(d, gcPreDraw, color);
-      }
-      else if (e.xkey.keycode == 42 /* g green */)
-      {
-        color = 0x00FF00;
-        XSetForeground(d, gc, color);
-        XSetForeground(d, gcPreDraw, color);
-      }
-      else if (e.xkey.keycode == 57 /* n number */)
-      {
-        XFontStruct *ft = XLoadQueryFont(d, FONT);
-        XSetFont(d, gc, ft->fid);
-        char s[4] = {'(', stepCnt + '0', ')', '\0'};
-        stepCnt++;
-        if (stepCnt >= 9)
-          stepCnt = 0;
-        XDrawString(d, w, gc, e.xbutton.x, e.xbutton.y, s, strlen(s));
-      }
-      else if (e.xkey.keycode == 30 /* u undo */)
-      {
-        if (maxUndo > 0)
-        { // if there are levels that can be undone
-          undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : --undoLevel;
-          maxUndo = (maxUndo < 0) ? 0 : --maxUndo;
-          // restore the saved background
-          XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+        if (e.xkey.keycode == 0x09 /* ESC */)
+        {
+          bye(d, w);
+        }
+        else if (e.xkey.keycode == 54 /* c cicle*/)
+        {
+          shape = 'c';
+          p = 0;
+          setCursor(d, w, &cursor, XC_dot);
+        }
+        else if (e.xkey.keycode == 27 /* r retangle*/)
+        {
+          shape = 'r';
+          p = 0;
+          setCursor(d, w, &cursor, XC_icon);
+        }
+        else if (e.xkey.keycode == 33 /* p pen */)
+        {
+          shape = 'p';
+          p = 0;
+          setCursor(d, w, &cursor, XC_pencil);
+        }
+        else if (e.xkey.keycode == 38 /* a arrow*/)
+        {
+          shape = 'a';
+          p = 0;
+          setCursor(d, w, &cursor, XC_sb_up_arrow);
+        }
+        else if (e.xkey.keycode == 46 /* l line */)
+        {
+          shape = 'l';
+          p = 0;
+          setCursor(d, w, &cursor, XC_tcross);
+        }
+        else if (e.xkey.keycode == 41 /* f save screenshot to file save*/)
+        {
+          saveScreenshot(d, w, screen);
+        }
+        else if (e.xkey.keycode == 39 /* s screenshot*/)
+        {
+          system("xfce4-screenshooter -r -c");
+          bye(d, w);
+        }
+        else if (e.xkey.keycode == 28 /* t inject text*/)
+        {
+          // userText(d, w, gc, e.xbutton.x, e.xbutton.y);
+          XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0); // save the current
+          setCursor(d, w, &cursor, XC_xterm);
+          x_text = e.xbutton.x;
+          y_text = e.xbutton.y;
+          t_text = 1;
+        }
+        else if (e.xkey.keycode == 65 /* space next color*/)
+        {
+          color_index = (color_index + 1) % MAX_COLORS;
+          XSetForeground(d, gc, color_list[color_index]);
+          XSetForeground(d, gcPreDraw, color_list[color_index]);
+        }
+        else if (e.xkey.keycode == 29 /* y yellow */)
+        {
+          color = 0xFFFF33;
+          XSetForeground(d, gc, color);
+          XSetForeground(d, gcPreDraw, color);
+        }
+        else if (e.xkey.keycode == 19 /* 0 (reset to red) */)
+        {
+          color = 0xFF3333;
+          XSetForeground(d, gc, color);
+          XSetForeground(d, gcPreDraw, color);
+        }
+        else if (e.xkey.keycode == 56 /* b blue */)
+        {
+          color = 0x3333FF;
+          XSetForeground(d, gc, color);
+        }
+        else if (e.xkey.keycode == 25 /* w white */)
+        {
+          color = 0xFFFFFF;
+          XSetForeground(d, gc, color);
+          XSetForeground(d, gcPreDraw, color);
+        }
+        else if (e.xkey.keycode == 42 /* g green */)
+        {
+          color = 0x00FF00;
+          XSetForeground(d, gc, color);
+          XSetForeground(d, gcPreDraw, color);
+        }
+        else if (e.xkey.keycode == 57 /* n number */)
+        {
+          XFontStruct *ft = XLoadQueryFont(d, FONT);
+          XSetFont(d, gc, ft->fid);
+          char s[4] = {'(', stepCnt + '0', ')', '\0'};
+          stepCnt++;
+          if (stepCnt >= 9)
+            stepCnt = 0;
+          XDrawString(d, w, gc, e.xbutton.x, e.xbutton.y, s, strlen(s));
+        }
+        else if (e.xkey.keycode == 30 /* u undo */)
+        {
+          if (maxUndo > 0)
+          { // if there are levels that can be undone
+            undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : --undoLevel;
+            maxUndo = (maxUndo < 0) ? 0 : --maxUndo;
+            // restore the saved background
+            XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+          }
         }
       }
     }
