@@ -50,16 +50,13 @@ ffmpeg -i /tmp/screenshot.ppm ~/Pictures/screenshot.png
 */
 void saveScreenshotAsPPM(XImage *image)
 {
-
   FILE *f = fopen("//tmp//screenshot.ppm", "wb");
   if (f == NULL)
   {
     fprintf(stderr, "Failed to open file for writing.\n");
     return;
   }
-
   fprintf(f, "P6\n%d %d\n255\n", image->width, image->height);
-
   for (int y = 0; y < image->height; y++)
   {
     for (int x = 0; x < image->width; x++)
@@ -75,9 +72,7 @@ void saveScreenshotAsPPM(XImage *image)
       fputc(blue, f);
     }
   }
-
   fclose(f);
-
   // Save as png
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
@@ -94,16 +89,10 @@ void saveScreenshotAsPPM(XImage *image)
   }
 }
 
-void saveScreenshot(Display *d, Window w, int screen)
+void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1)
 {
   XImage *image;
-  unsigned int width, height;
-  int x, y;
-  width = DisplayWidth(d, screen);
-  height = DisplayHeight(d, screen);
-  x = 0;
-  y = 0;
-  image = XGetImage(d, w, x, y, width, height, AllPlanes, ZPixmap);
+  image = XGetImage(d, w, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
   if (image == NULL)
   {
     fprintf(stderr, "Failed to capture screenshot.\n");
@@ -270,6 +259,28 @@ void setCursor(Display *d, Window w, Cursor *cursor, int cursorId)
   XSync(d, False);
 }
 
+void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
+{
+  switch (shape)
+  {
+  case 'c':
+    setCursor(d, w, cursor, XC_dot);
+    break;
+  case 'p':
+    setCursor(d, w, cursor, XC_pencil);
+    break;
+  case 'r':
+    setCursor(d, w, cursor, XC_icon);
+    break;
+  case 'a':
+    setCursor(d, w, cursor, XC_sb_up_arrow);
+    break;
+  case 'l':
+    setCursor(d, w, cursor, XC_tcross);
+    break;
+  }
+}
+
 ////////////////////////
 // MAIN
 ////////////////////////
@@ -284,7 +295,7 @@ int main()
       0xFFA500 /* orange */,
       0xFFFFFF /* white */
   };
-
+  int f_screenshot = 0;
   Display *d;
   Window w;
   int screen;
@@ -297,6 +308,7 @@ int main()
 
   // Freehand Pen
   char shape = 'p';
+  char prv_shape = shape;
   long color = color_list[0];
   int drawing = 0;
   Path path;
@@ -351,7 +363,8 @@ int main()
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
 
   // https://tronche.com/gui/x/xlib/appendix/b/
-  setCursor(d, w, &cursor, XC_pencil);
+  setShapeCursor(d, w, &cursor, shape);
+
   // BEGIN Text input
   char text[256] = {0}; /* a char buffer for KeyPress Events */
   int l_text = 0;       // text length
@@ -384,6 +397,7 @@ int main()
       switch (shape)
       {
       case 'p':
+      {
         if (drawing)
         {
           drawing = 0;
@@ -393,8 +407,10 @@ int main()
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         }
-        break;
+      }
+      break;
       case 'c':
+      {
         // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
@@ -402,57 +418,61 @@ int main()
         }
         // save the background at the current position and increment it
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
-
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-
         drawCircle(d, w, gc, rect[0].x, rect[0].y, abs(rect[1].x - rect[0].x));
-        break;
+      }
+      break;
       case 'r':
-        // predraw is deleted before saving the undo level
+      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-
-        // save the background at the current position and increment it
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
-
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-
-        drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
-        break;
+        if (f_screenshot)
+        {
+          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          XSetForeground(d, gcPreDraw, color);
+          shape = prv_shape;
+        }
+        else
+        {
+          // save the background at the current position and increment it
+          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+        }
+        f_screenshot = 0;
+        setShapeCursor(d, w, &cursor, shape);
+      }
+      break;
       case 'a':
-        // predraw is deleted before saving the undo level
+      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         }
-
         // save the background at the current position and increment it
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
-
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-
         drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
-        break;
+      }
+      break;
       case 'l':
-        // predraw is deleted before saving the undo level
+      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-
         // save the background at the current position and increment it
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
-
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
-        break;
+      }
+      break;
       }
       // restart the points and the predraw tool
       p = 0;
@@ -569,39 +589,45 @@ int main()
         {
           shape = 'c';
           p = 0;
-          setCursor(d, w, &cursor, XC_dot);
+          setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 27 /* r retangle*/)
         {
           shape = 'r';
           p = 0;
-          setCursor(d, w, &cursor, XC_icon);
+          setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 33 /* p pen */)
         {
           shape = 'p';
           p = 0;
-          setCursor(d, w, &cursor, XC_pencil);
+          setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 38 /* a arrow*/)
         {
           shape = 'a';
           p = 0;
-          setCursor(d, w, &cursor, XC_sb_up_arrow);
+          setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 46 /* l line */)
         {
           shape = 'l';
           p = 0;
-          setCursor(d, w, &cursor, XC_tcross);
+          setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 41 /* f save screenshot to file save*/)
         {
-          saveScreenshot(d, w, screen);
+          prv_shape = shape;
+          shape = 'r';
+          p = 0;
+          f_screenshot = 1;
+          setCursor(d, w, &cursor, XC_bottom_right_corner);
+          XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
         else if (e.xkey.keycode == 39 /* s screenshot*/)
         {
           // sudo apt install scrot xclip
+          // TODO: remove scrot and zpen dependencies
           system("rm -f /tmp/zpen.png");
           system("scrot -s /tmp/zpen.png && xclip -selection clipboard -t image/png -i /tmp/zpen.png");
           system("rm -f /tmp/zpen.png");
@@ -622,15 +648,15 @@ int main()
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
         }
-        else if (e.xkey.keycode == 29 /* y yellow */)
-        {
-          color = 0xFFFF33;
-          XSetForeground(d, gc, color);
-          XSetForeground(d, gcPreDraw, color);
-        }
         else if (e.xkey.keycode == 19 /* 0 (reset to red) */)
         {
           color = 0xFF3333;
+          XSetForeground(d, gc, color);
+          XSetForeground(d, gcPreDraw, color);
+        }
+        else if (e.xkey.keycode == 29 /* y yellow */)
+        {
+          color = 0xFFFF33;
           XSetForeground(d, gc, color);
           XSetForeground(d, gcPreDraw, color);
         }
