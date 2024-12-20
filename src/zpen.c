@@ -4,10 +4,13 @@
   @author: Marco Aurelio Zoqui <marco_at_zoqui_dot_com>
   @version: 0.1
 */
-// requires scrot and xclip for screenshots
-// sudo apt install scrot xclip
-// compile:
+// Dependencies:
+// For clipboard management it requires the xclip program
+// sudo apt install xclip
+//
+// Hot to compile:
 // gcc zpen.c -o zpen -lX11 -lm
+//
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -20,6 +23,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <pwd.h>
+#include <unistd.h>
 
 #define PI 3.14159265358979323846 /* pi */
 #define MAX_POINTS 10000
@@ -44,16 +51,207 @@ typedef struct
   int count;
 } Path;
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
+int convert_ppm_to_png(const char *ppm_path, const char *png_path)
+{
+  FILE *file = fopen(ppm_path, "rb");
+  if (!file)
+  {
+    printf("Error opening PPM file: %s\n", ppm_path);
+    return 0;
+  }
+
+  // Read PPM Header
+  char format[3];
+  int width, height, maxval;
+  if (fscanf(file, "%2s\n%d %d\n%d\n", format, &width, &height, &maxval) != 4)
+  {
+    printf("Error reading PPM file header.\n");
+    fclose(file);
+    return 0;
+  }
+  if (format[0] != 'P' || format[1] != '6')
+  {
+    printf("Invalid PPM format. Only P6 is supported.\n");
+    fclose(file);
+    return 0;
+  }
+  if (maxval != 255)
+  {
+    printf("Unsupported max value: %d. Only images with maxval=255 are supported.\n", maxval);
+    fclose(file);
+    return 0;
+  }
+
+  // Allocate memory for image data
+  int channels = 3; // RGB
+  size_t image_size = width * height * channels;
+  unsigned char *data = (unsigned char *)malloc(image_size);
+  if (!data)
+  {
+    printf("Error allocating memory for image data.\n");
+    fclose(file);
+    return 0;
+  }
+
+  // Read image data
+  if (fread(data, 1, image_size, file) != image_size)
+  {
+    printf("Error reading image data.\n");
+    free(data);
+    fclose(file);
+    return 0;
+  }
+  fclose(file);
+
+  // Write the image in PNG format
+  if (!stbi_write_png(png_path, width, height, channels, data, width * channels))
+  {
+    printf("Error saving PNG file: %s\n", png_path);
+    free(data);
+    return 0;
+  }
+
+  free(data);
+  return 1;
+}
+
+int convert_ppm_to_jpeg(const char *ppm_path, const char *jpeg_path, int quality)
+{
+  FILE *file = fopen(ppm_path, "rb");
+  if (!file)
+  {
+    printf("Error opening PPM file: %s\n", ppm_path);
+    return 0;
+  }
+  // Read PPM Header
+  char format[3];
+  int width, height, maxval;
+  if (fscanf(file, "%2s\n%d %d\n%d\n", format, &width, &height, &maxval) != 4)
+  {
+    printf("Error reading PPM file header.\n");
+    fclose(file);
+    return 0;
+  }
+  if (format[0] != 'P' || format[1] != '6')
+  {
+    printf("Invalid PPM format. Only P6 is supported.\n");
+    fclose(file);
+    return 0;
+  }
+  if (maxval != 255)
+  {
+    printf("Unsupported max value: %d. Only images with maxval=255 are supported..\n", maxval);
+    fclose(file);
+    return 0;
+  }
+  // Allocate memory for image data
+  int channels = 3; // RGB
+  size_t image_size = width * height * channels;
+  unsigned char *data = (unsigned char *)malloc(image_size);
+  if (!data)
+  {
+    printf("Erro ao alocar memória para a imagem.\n");
+    fclose(file);
+    return 0;
+  }
+  // Read image data
+  if (fread(data, 1, image_size, file) != image_size)
+  {
+    printf("Erro ao ler dados da imagem.\n");
+    free(data);
+    fclose(file);
+    return 0;
+  }
+  fclose(file);
+  // Write the image in JPEG format
+  if (!stbi_write_jpg(jpeg_path, width, height, channels, data, quality))
+  {
+    printf("Error saving JPEG file: %s\n", jpeg_path);
+    free(data);
+    return 0;
+  }
+  free(data);
+  return 1;
+}
+
+/**
+ * Get the full path of the ~/.zpen directory
+ * Returns a dynamically allocated string that must be freed by the caller
+ */
+char *get_zpen_directory()
+{
+  const char *home_dir;
+  char *zpen_dir;
+  // Try to get HOME from the environment
+  home_dir = getenv("HOME");
+  if (!home_dir)
+  {
+    // If HOME is not set, try to get it from passwd
+    struct passwd *pwd = getpwuid(getuid());
+    if (pwd)
+      home_dir = pwd->pw_dir;
+    else
+      return NULL;
+  }
+  // Allocates space for the full path
+  size_t len = strlen(home_dir) + strlen("/.zpen") + 1;
+  zpen_dir = malloc(len);
+  if (!zpen_dir)
+    return NULL;
+  snprintf(zpen_dir, len, "%s/.zpen", home_dir);
+  return zpen_dir;
+}
+
+/**
+ * Creates the ~/.zpen directory if it does not exist
+ * Returns 0 on success, -1 on error
+ */
+int ensure_zpen_directory()
+{
+  char *zpen_dir = get_zpen_directory();
+  if (!zpen_dir)
+    return -1;
+  struct stat st;
+  if (stat(zpen_dir, &st) == -1)
+  {
+    if (errno == ENOENT)
+    {
+      // Directory does not exist, let&#39;s create it with permissions 700 (rwx------)
+      if (mkdir(zpen_dir, S_IRWXU) == -1)
+      {
+        free(zpen_dir);
+        return -1;
+      }
+    }
+    else
+    {
+      free(zpen_dir);
+      return -1;
+    }
+  }
+  free(zpen_dir);
+  return 0;
+}
+
 /*
 convert to png
-ffmpeg -i /tmp/screenshot.ppm ~/Pictures/screenshot.png
 */
-void saveScreenshotAsPPM(XImage *image)
+void saveScreenshotFile(XImage *image, int toClipboard)
 {
-  FILE *f = fopen("//tmp//screenshot.ppm", "wb");
+  // Ensures the ~/.zpen directory exists
+  if (ensure_zpen_directory() == -1)
+  {
+    fprintf(stderr, "Failed to create or access .zpen directory\n");
+    return;
+  }
+  // Save first to temporary PPM file
+  FILE *f = fopen("/tmp/screenshot.ppm", "wb");
   if (f == NULL)
   {
-    fprintf(stderr, "Failed to open file for writing.\n");
+    fprintf(stderr, "Failed to open temporary file for writing.\n");
     return;
   }
   fprintf(f, "P6\n%d %d\n255\n", image->width, image->height);
@@ -61,8 +259,7 @@ void saveScreenshotAsPPM(XImage *image)
   {
     for (int x = 0; x < image->width; x++)
     {
-      int pixel;
-      pixel = XGetPixel(image, x, y);
+      int pixel = XGetPixel(image, x, y);
       unsigned char red = (pixel & image->red_mask) >> 16;
       unsigned char green = (pixel & image->green_mask) >> 8;
       unsigned char blue = pixel & image->blue_mask;
@@ -73,23 +270,39 @@ void saveScreenshotAsPPM(XImage *image)
     }
   }
   fclose(f);
-  // Save as png
+  // Save as png (jpeg will be used in future. right now xclip does not support it)
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
-  char filename[100];
-  snprintf(filename, sizeof(filename), "~/Pictures/screenshot_%04d-%02d-%02dT%02d-%02d-%02d.png",
+  char filename[1024];
+  const char *home = getenv("HOME");
+  if (!home)
+  {
+    printf("Error: Could not get HOME directory.\n");
+    return;
+  }
+  snprintf(filename, sizeof(filename), "%s/.zpen/img%04d%02d%02d%02d%02d%02d.png",
+           home,
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec);
-  char command[200];
-  snprintf(command, sizeof(command), "ffmpeg -loglevel quiet -hide_banner -stats -y -an -i /tmp/screenshot.ppm %s >/dev/null 2>&1", filename);
-  int result = system(command);
-  if (result == -1)
+
+  if (!convert_ppm_to_png("/tmp/screenshot.ppm", filename))
   {
-    perror("Something went wrong");
+    printf("PPM file to JPEG conversion failed.\n");
+  }
+  remove("/tmp/screenshot.ppm"); // Clean the temporary file
+  if (toClipboard)
+  {
+    char command[200];
+    snprintf(command, sizeof(command), "xclip -selection clipboard -t image/png -i %s", filename);
+    int result = system(command);
+    if (result == -1)
+    {
+      perror("Something went wrong with xclip call");
+    }
   }
 }
 
-void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1)
+void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1, int toClipboard)
 {
   XImage *image;
   image = XGetImage(d, w, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
@@ -98,7 +311,7 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
     fprintf(stderr, "Failed to capture screenshot.\n");
     return;
   }
-  saveScreenshotAsPPM(image);
+  saveScreenshotFile(image, toClipboard);
   XDestroyImage(image);
 }
 
@@ -431,9 +644,13 @@ int main()
         }
         if (f_screenshot)
         {
-          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, f_screenshot == 2 ? 1 : 0);
           XSetForeground(d, gcPreDraw, color);
           shape = prv_shape;
+          if (f_screenshot == 2)
+          {
+            bye(d, w);
+          }
         }
         else
         {
@@ -624,14 +841,14 @@ int main()
           setCursor(d, w, &cursor, XC_bottom_right_corner);
           XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
-        else if (e.xkey.keycode == 39 /* s screenshot*/)
+        else if (e.xkey.keycode == 39 /* s save screenshot, copy it to the clipboard and exit*/)
         {
-          // sudo apt install scrot xclip
-          // TODO: remove scrot and zpen dependencies
-          system("rm -f /tmp/zpen.png");
-          system("scrot -s /tmp/zpen.png && xclip -selection clipboard -t image/png -i /tmp/zpen.png");
-          system("rm -f /tmp/zpen.png");
-          bye(d, w);
+          prv_shape = shape;
+          shape = 'r';
+          p = 0;
+          f_screenshot = 2;
+          setCursor(d, w, &cursor, XC_bottom_right_corner);
+          XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
         else if (e.xkey.keycode == 28 /* t inject text*/)
         {
