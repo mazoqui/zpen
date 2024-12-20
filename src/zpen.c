@@ -483,10 +483,10 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     setCursor(d, w, cursor, XC_pencil);
     break;
   case 'r':
-    setCursor(d, w, cursor, XC_icon);
+    setCursor(d, w, cursor, XC_top_right_corner);
     break;
   case 'a':
-    setCursor(d, w, cursor, XC_sb_up_arrow);
+    setCursor(d, w, cursor, XC_right_ptr);
     break;
   case 'l':
     setCursor(d, w, cursor, XC_tcross);
@@ -838,7 +838,7 @@ int main()
           shape = 'r';
           p = 0;
           f_screenshot = 1;
-          setCursor(d, w, &cursor, XC_bottom_right_corner);
+          setCursor(d, w, &cursor, XC_icon);
           XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
         else if (e.xkey.keycode == 39 /* s save screenshot, copy it to the clipboard and exit*/)
@@ -847,7 +847,7 @@ int main()
           shape = 'r';
           p = 0;
           f_screenshot = 2;
-          setCursor(d, w, &cursor, XC_bottom_right_corner);
+          setCursor(d, w, &cursor, XC_icon);
           XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
         else if (e.xkey.keycode == 28 /* t inject text*/)
