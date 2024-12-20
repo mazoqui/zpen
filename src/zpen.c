@@ -586,7 +586,7 @@ int main()
   int y_text = 0;
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
   // END Text input
-
+  drawCircle(d, w, gc, width - 10, height - 10, 2);
   while (True)
   {
     XNextEvent(d, &e);
@@ -864,35 +864,41 @@ int main()
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 19 /* 0 (reset to red) */)
         {
           color = 0xFF3333;
           XSetForeground(d, gc, color);
           XSetForeground(d, gcPreDraw, color);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 29 /* y yellow */)
         {
           color = 0xFFFF33;
           XSetForeground(d, gc, color);
           XSetForeground(d, gcPreDraw, color);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 56 /* b blue */)
         {
           color = 0x3333FF;
           XSetForeground(d, gc, color);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 25 /* w white */)
         {
           color = 0xFFFFFF;
           XSetForeground(d, gc, color);
           XSetForeground(d, gcPreDraw, color);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 42 /* g green */)
         {
           color = 0x00FF00;
           XSetForeground(d, gc, color);
           XSetForeground(d, gcPreDraw, color);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 57 /* n number */)
         {
