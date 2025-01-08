@@ -34,13 +34,15 @@
     - `p`: Pen (Freehand drawing)
     - `a`: Arrow
     - `l`: Line
+    - `t`: Input text at cursor current position
 - Press `space` to change the pen color or press:
 	- `y`: Yellow
 	- `g`: Green
 	- `b`: Blue
 	- `w`: White
 	- `0`: Reset to Red
-- Press `s` to take a screenshot and save it as a PNG file.
+- Press `s` to take a screenshot, copy it to the clipboard and exit.
+- Press `f` to take a screenshot and save it as a PNG file.
 - Press `u` to undo the last action (limited history).
 ## Requirements:
 
@@ -69,6 +71,15 @@ You may want to add a shortcut
 
 `xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>p' -s $PWD/zpen`
 
+### Debian - Linux Mint cinnamon users
+
+```
+dconf write /org/cinnamon/desktop/keybindings/custom-list "['custom0']"
+dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/command "'$PWD/zpen'"
+dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/name "'zpen'"
+dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding "['<Super>p']"
+
+```
 ### Key Controls
 
 - `p`: Select the freehand pen tool.
@@ -76,7 +87,10 @@ You may want to add a shortcut
 - `c`: Select the circle tool.
 - `l`: Select the line tool.
 - `a`: Select the arrow tool.
-- `s`: Capture a screenshot.
+- `t`: Text input
+- `s`: Capture a screenshot to clipboard
+- `f`: Capture a screenshot to file
+- ``
 
 ### Mouse Controls
 
@@ -86,7 +100,7 @@ You may want to add a shortcut
 
 ## Screenshot Saving
 
-Screenshots are saved in the `~/Pictures` directory with the format `screenshot_YYYY-MM-DDTHH-MM-SS.png`.
+Screenshots are saved in the `~/.zpen` directory with the format `img_YYYY-MM-DDTHH-MM-SS.png`.
 
 ## License
 
