@@ -48,6 +48,12 @@
 
 - Linux system
 - X Window System
+
+## xclip for clipboard management
+Install xclip if required (pre-installed in most common linux distributions)
+
+`sudo apt install xclip`
+
 ## Installation
 
 To compile and run **zPen**, you need to have the **Xlib** development libraries installed on your system. Then, compile the source code with the following command:
