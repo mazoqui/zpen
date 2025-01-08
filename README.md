@@ -78,8 +78,8 @@ dconf write /org/cinnamon/desktop/keybindings/custom-list "['custom0']"
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/command "'$PWD/zpen'"
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/name "'zpen'"
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding "['<Super>p']"
-
 ```
+
 ### Key Controls
 
 - `p`: Select the freehand pen tool.
