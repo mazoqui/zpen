@@ -486,7 +486,8 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     setCursor(d, w, cursor, XC_sizing);
     break;
   case 'a':
-    setCursor(d, w, cursor, XC_right_ptr);
+    // setCursor(d, w, cursor, XC_right_ptr);
+    setCursor(d, w, cursor, XC_ur_angle);
     break;
   case 'l':
     setCursor(d, w, cursor, XC_tcross);
@@ -520,7 +521,7 @@ int main()
   XPoint pointPreDraw; // initial incorrect values, so as not to paint it without having the first point chosen
 
   // Freehand Pen
-  char shape = 'p';
+  char shape = 'a'; // Initial TOOL
   char prv_shape = shape;
   long color = color_list[0];
   int drawing = 0;
