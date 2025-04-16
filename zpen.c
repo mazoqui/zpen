@@ -764,7 +764,7 @@ int main()
         char ltext[25];
         int n = XLookupString(&e.xkey, ltext, sizeof(ltext) - 1, &key, NULL);
         ltext[n] = 0x00;
-        if (key == XK_Return)
+        if (key == XK_Return || e.xkey.keycode == 104)
         {
           l_text = 0;
           t_text = 0;
