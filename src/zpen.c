@@ -464,28 +464,28 @@ void drawOpeningBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y
   int quarterH = height / 4;
   int sixthW = width / 6;
   int indentAmount = width / 4; // Shallow indent, not all the way to left
-  
+
   // Opening brace { with shallow middle indent
-  // Top horizontal section  
-  XDrawLine(d, w, gc, leftX + width/3, topY, rightX - sixthW/2, topY);
+  // Top horizontal section
+  XDrawLine(d, w, gc, leftX + width / 3, topY, rightX - sixthW / 2, topY);
   // Top right curve downward
-  XDrawLine(d, w, gc, rightX - sixthW/2, topY, rightX - sixthW/3, topY + sixthW/2);
-  XDrawLine(d, w, gc, rightX - sixthW/3, topY + sixthW/2, rightX - sixthW/4, topY + sixthW);
+  XDrawLine(d, w, gc, rightX - sixthW / 2, topY, rightX - sixthW / 3, topY + sixthW / 2);
+  XDrawLine(d, w, gc, rightX - sixthW / 3, topY + sixthW / 2, rightX - sixthW / 4, topY + sixthW);
   // Right side to upper middle
-  XDrawLine(d, w, gc, rightX - sixthW/4, topY + sixthW, rightX - sixthW/4, midY - quarterH/2);
+  XDrawLine(d, w, gc, rightX - sixthW / 4, topY + sixthW, rightX - sixthW / 4, midY - quarterH / 2);
   // Gentle curve outward for upper middle (angle RIGHT - inverted)
-  XDrawLine(d, w, gc, rightX - sixthW/4, midY - quarterH/2, rightX + indentAmount, midY - sixthW/3);
-  XDrawLine(d, w, gc, rightX + indentAmount, midY - sixthW/3, rightX + indentAmount + sixthW/4, midY);
+  XDrawLine(d, w, gc, rightX - sixthW / 4, midY - quarterH / 2, rightX + indentAmount, midY - sixthW / 3);
+  XDrawLine(d, w, gc, rightX + indentAmount, midY - sixthW / 3, rightX + indentAmount + sixthW / 4, midY);
   // Gentle curve inward for lower middle (back from right bulge)
-  XDrawLine(d, w, gc, rightX + indentAmount + sixthW/4, midY, rightX + indentAmount, midY + sixthW/3);
-  XDrawLine(d, w, gc, rightX + indentAmount, midY + sixthW/3, rightX - sixthW/4, midY + quarterH/2);
+  XDrawLine(d, w, gc, rightX + indentAmount + sixthW / 4, midY, rightX + indentAmount, midY + sixthW / 3);
+  XDrawLine(d, w, gc, rightX + indentAmount, midY + sixthW / 3, rightX - sixthW / 4, midY + quarterH / 2);
   // Right side from lower middle to bottom
-  XDrawLine(d, w, gc, rightX - sixthW/4, midY + quarterH/2, rightX - sixthW/4, bottomY - sixthW);
+  XDrawLine(d, w, gc, rightX - sixthW / 4, midY + quarterH / 2, rightX - sixthW / 4, bottomY - sixthW);
   // Bottom right curve upward
-  XDrawLine(d, w, gc, rightX - sixthW/4, bottomY - sixthW, rightX - sixthW/3, bottomY - sixthW/2);
-  XDrawLine(d, w, gc, rightX - sixthW/3, bottomY - sixthW/2, rightX - sixthW/2, bottomY);
+  XDrawLine(d, w, gc, rightX - sixthW / 4, bottomY - sixthW, rightX - sixthW / 3, bottomY - sixthW / 2);
+  XDrawLine(d, w, gc, rightX - sixthW / 3, bottomY - sixthW / 2, rightX - sixthW / 2, bottomY);
   // Bottom horizontal section
-  XDrawLine(d, w, gc, rightX - sixthW/2, bottomY, leftX + width/3, bottomY);
+  XDrawLine(d, w, gc, rightX - sixthW / 2, bottomY, leftX + width / 3, bottomY);
 }
 
 /**
@@ -505,28 +505,28 @@ void drawClosingBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y
   int quarterH = height / 4;
   int sixthW = width / 6;
   int bulgeAmount = width / 4; // Shallow bulge, not all the way to right
-  
+
   // Closing brace } with shallow middle bulge
   // Top horizontal section
-  XDrawLine(d, w, gc, rightX - width/3, topY, leftX + sixthW/2, topY);
+  XDrawLine(d, w, gc, rightX - width / 3, topY, leftX + sixthW / 2, topY);
   // Top left curve downward
-  XDrawLine(d, w, gc, leftX + sixthW/2, topY, leftX + sixthW/3, topY + sixthW/2);
-  XDrawLine(d, w, gc, leftX + sixthW/3, topY + sixthW/2, leftX + sixthW/4, topY + sixthW);
+  XDrawLine(d, w, gc, leftX + sixthW / 2, topY, leftX + sixthW / 3, topY + sixthW / 2);
+  XDrawLine(d, w, gc, leftX + sixthW / 3, topY + sixthW / 2, leftX + sixthW / 4, topY + sixthW);
   // Left side to upper middle
-  XDrawLine(d, w, gc, leftX + sixthW/4, topY + sixthW, leftX + sixthW/4, midY - quarterH/2);
+  XDrawLine(d, w, gc, leftX + sixthW / 4, topY + sixthW, leftX + sixthW / 4, midY - quarterH / 2);
   // Gentle curve outward for upper middle (angle LEFT - inverted)
-  XDrawLine(d, w, gc, leftX + sixthW/4, midY - quarterH/2, leftX - bulgeAmount, midY - sixthW/3);
-  XDrawLine(d, w, gc, leftX - bulgeAmount, midY - sixthW/3, leftX - bulgeAmount - sixthW/4, midY);
+  XDrawLine(d, w, gc, leftX + sixthW / 4, midY - quarterH / 2, leftX - bulgeAmount, midY - sixthW / 3);
+  XDrawLine(d, w, gc, leftX - bulgeAmount, midY - sixthW / 3, leftX - bulgeAmount - sixthW / 4, midY);
   // Gentle curve inward for lower middle (back from left indent)
-  XDrawLine(d, w, gc, leftX - bulgeAmount - sixthW/4, midY, leftX - bulgeAmount, midY + sixthW/3);
-  XDrawLine(d, w, gc, leftX - bulgeAmount, midY + sixthW/3, leftX + sixthW/4, midY + quarterH/2);
+  XDrawLine(d, w, gc, leftX - bulgeAmount - sixthW / 4, midY, leftX - bulgeAmount, midY + sixthW / 3);
+  XDrawLine(d, w, gc, leftX - bulgeAmount, midY + sixthW / 3, leftX + sixthW / 4, midY + quarterH / 2);
   // Left side from lower middle to bottom
-  XDrawLine(d, w, gc, leftX + sixthW/4, midY + quarterH/2, leftX + sixthW/4, bottomY - sixthW);
+  XDrawLine(d, w, gc, leftX + sixthW / 4, midY + quarterH / 2, leftX + sixthW / 4, bottomY - sixthW);
   // Bottom left curve upward
-  XDrawLine(d, w, gc, leftX + sixthW/4, bottomY - sixthW, leftX + sixthW/3, bottomY - sixthW/2);
-  XDrawLine(d, w, gc, leftX + sixthW/3, bottomY - sixthW/2, leftX + sixthW/2, bottomY);
+  XDrawLine(d, w, gc, leftX + sixthW / 4, bottomY - sixthW, leftX + sixthW / 3, bottomY - sixthW / 2);
+  XDrawLine(d, w, gc, leftX + sixthW / 3, bottomY - sixthW / 2, leftX + sixthW / 2, bottomY);
   // Bottom horizontal section
-  XDrawLine(d, w, gc, leftX + sixthW/2, bottomY, rightX - width/3, bottomY);
+  XDrawLine(d, w, gc, leftX + sixthW / 2, bottomY, rightX - width / 3, bottomY);
 }
 
 /**
@@ -543,20 +543,20 @@ void drawOpeningBracket(Display *d, Window w, GC gc, int x0, int y0, int x1, int
   int rightX = leftX + width;
   int bottomY = topY + height;
   int sixthW = width / 6;
-  
+
   // Opening bracket [ - simple rectangular shape
   // Top horizontal line
-  XDrawLine(d, w, gc, leftX + width/3, topY, rightX - sixthW/2, topY);
+  XDrawLine(d, w, gc, leftX + width / 3, topY, rightX - sixthW / 2, topY);
   // Top right curve downward
-  XDrawLine(d, w, gc, rightX - sixthW/2, topY, rightX - sixthW/3, topY + sixthW/2);
-  XDrawLine(d, w, gc, rightX - sixthW/3, topY + sixthW/2, rightX - sixthW/4, topY + sixthW);
+  XDrawLine(d, w, gc, rightX - sixthW / 2, topY, rightX - sixthW / 3, topY + sixthW / 2);
+  XDrawLine(d, w, gc, rightX - sixthW / 3, topY + sixthW / 2, rightX - sixthW / 4, topY + sixthW);
   // Right side vertical line (no middle angle)
-  XDrawLine(d, w, gc, rightX - sixthW/4, topY + sixthW, rightX - sixthW/4, bottomY - sixthW);
+  XDrawLine(d, w, gc, rightX - sixthW / 4, topY + sixthW, rightX - sixthW / 4, bottomY - sixthW);
   // Bottom right curve upward
-  XDrawLine(d, w, gc, rightX - sixthW/4, bottomY - sixthW, rightX - sixthW/3, bottomY - sixthW/2);
-  XDrawLine(d, w, gc, rightX - sixthW/3, bottomY - sixthW/2, rightX - sixthW/2, bottomY);
+  XDrawLine(d, w, gc, rightX - sixthW / 4, bottomY - sixthW, rightX - sixthW / 3, bottomY - sixthW / 2);
+  XDrawLine(d, w, gc, rightX - sixthW / 3, bottomY - sixthW / 2, rightX - sixthW / 2, bottomY);
   // Bottom horizontal line
-  XDrawLine(d, w, gc, rightX - sixthW/2, bottomY, leftX + width/3, bottomY);
+  XDrawLine(d, w, gc, rightX - sixthW / 2, bottomY, leftX + width / 3, bottomY);
 }
 
 /**
@@ -573,20 +573,20 @@ void drawClosingBracket(Display *d, Window w, GC gc, int x0, int y0, int x1, int
   int rightX = leftX + width;
   int bottomY = topY + height;
   int sixthW = width / 6;
-  
+
   // Closing bracket ] - simple rectangular shape
   // Top horizontal line
-  XDrawLine(d, w, gc, rightX - width/3, topY, leftX + sixthW/2, topY);
+  XDrawLine(d, w, gc, rightX - width / 3, topY, leftX + sixthW / 2, topY);
   // Top left curve downward
-  XDrawLine(d, w, gc, leftX + sixthW/2, topY, leftX + sixthW/3, topY + sixthW/2);
-  XDrawLine(d, w, gc, leftX + sixthW/3, topY + sixthW/2, leftX + sixthW/4, topY + sixthW);
+  XDrawLine(d, w, gc, leftX + sixthW / 2, topY, leftX + sixthW / 3, topY + sixthW / 2);
+  XDrawLine(d, w, gc, leftX + sixthW / 3, topY + sixthW / 2, leftX + sixthW / 4, topY + sixthW);
   // Left side vertical line (no middle angle)
-  XDrawLine(d, w, gc, leftX + sixthW/4, topY + sixthW, leftX + sixthW/4, bottomY - sixthW);
+  XDrawLine(d, w, gc, leftX + sixthW / 4, topY + sixthW, leftX + sixthW / 4, bottomY - sixthW);
   // Bottom left curve upward
-  XDrawLine(d, w, gc, leftX + sixthW/4, bottomY - sixthW, leftX + sixthW/3, bottomY - sixthW/2);
-  XDrawLine(d, w, gc, leftX + sixthW/3, bottomY - sixthW/2, leftX + sixthW/2, bottomY);
+  XDrawLine(d, w, gc, leftX + sixthW / 4, bottomY - sixthW, leftX + sixthW / 3, bottomY - sixthW / 2);
+  XDrawLine(d, w, gc, leftX + sixthW / 3, bottomY - sixthW / 2, leftX + sixthW / 2, bottomY);
   // Bottom horizontal line
-  XDrawLine(d, w, gc, leftX + sixthW/2, bottomY, rightX - width/3, bottomY);
+  XDrawLine(d, w, gc, leftX + sixthW / 2, bottomY, rightX - width / 3, bottomY);
 }
 
 /**
@@ -673,7 +673,7 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     setCursor(d, w, cursor, XC_tcross);
     break;
   case 'k':
-    setCursor(d, w, cursor, XC_tcross);
+    setCursor(d, w, cursor, XC_left_side);
     break;
   case 'b':
     setCursor(d, w, cursor, XC_left_side);
@@ -766,6 +766,7 @@ int main()
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
   initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
 
+  // shape cursors supported by the xlib (x11)
   // https://tronche.com/gui/x/xlib/appendix/b/
   setShapeCursor(d, w, &cursor, shape);
 
@@ -943,11 +944,11 @@ int main()
           break;
         case 'k':
           drawBrace(d, w, gcPreDraw,
-                   rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'b':
           drawBracket(d, w, gcPreDraw,
-                   rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+                      rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         }
       }
@@ -983,11 +984,11 @@ int main()
         break;
       case 'k':
         drawBrace(d, w, gcPreDraw,
-                 rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+                  rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'b':
         drawBracket(d, w, gcPreDraw,
-                 rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       }
       XFlush(d);
@@ -1125,39 +1126,11 @@ int main()
           XSetForeground(d, gcPreDraw, color_list[color_index]);
           drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
-        else if (e.xkey.keycode == 19 /* 0 (reset to red) */)
-        {
-          color = 0xFF3333;
-          XSetForeground(d, gc, color);
-          XSetForeground(d, gcPreDraw, color);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
-        }
-        else if (e.xkey.keycode == 29 /* y yellow */)
-        {
-          color = 0xFFFF33;
-          XSetForeground(d, gc, color);
-          XSetForeground(d, gcPreDraw, color);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
-        }
         else if (e.xkey.keycode == 56 /* b bracket */)
         {
           shape = 'b';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
-        }
-        else if (e.xkey.keycode == 25 /* w white */)
-        {
-          color = 0xFFFFFF;
-          XSetForeground(d, gc, color);
-          XSetForeground(d, gcPreDraw, color);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
-        }
-        else if (e.xkey.keycode == 42 /* g green */)
-        {
-          color = 0x00FF00;
-          XSetForeground(d, gc, color);
-          XSetForeground(d, gcPreDraw, color);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
         else if (e.xkey.keycode == 57 /* n number */)
         {
@@ -1169,7 +1142,7 @@ int main()
             stepCnt = 0;
           XDrawString(d, w, gc, e.xbutton.x, e.xbutton.y, s, strlen(s));
         }
-        else if ((e.xkey.state & ControlMask) && (e.xkey.state & ShiftMask) && 
+        else if ((e.xkey.state & ControlMask) && (e.xkey.state & ShiftMask) &&
                  (e.xkey.keycode == 52 || e.xkey.keycode == 29)) /* Shift+Ctrl+Z redo */
         {
           if (maxRedo > 0)
@@ -1178,7 +1151,7 @@ int main()
             XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
             undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
             maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
-            
+
             // Perform redo
             redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
             maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
@@ -1186,8 +1159,8 @@ int main()
             XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
-        else if (e.xkey.keycode == 30 /* u undo */ || 
-                 ((e.xkey.state & ControlMask) && !(e.xkey.state & ShiftMask) && 
+        else if (e.xkey.keycode == 30 /* u undo */ ||
+                 ((e.xkey.state & ControlMask) && !(e.xkey.state & ShiftMask) &&
                   (e.xkey.keycode == 52 || e.xkey.keycode == 29))) /* Ctrl+Z */
         {
           if (maxUndo > 0)
@@ -1196,7 +1169,7 @@ int main()
             XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
             redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
             maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
-            
+
             // Perform undo
             undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
             maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;

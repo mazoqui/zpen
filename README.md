@@ -1,6 +1,6 @@
 # zpen
 
-**zPen** is a drawing tool for Linux systems written using Xlib. It allows you to create various shapes, lines, and freehand drawings on your screen. Additionally, you can take screenshots, change pen colors, and undo/redo your actions.
+**zPen** is a powerful drawing tool for Linux systems written using Xlib. It allows you to create various shapes, lines, freehand drawings, and special characters on your screen. Additionally, you can take screenshots, navigate colors efficiently, and use full undo/redo functionality with standard keyboard shortcuts.
 ## Features
 
 - **Drawing Tools:**
@@ -10,15 +10,21 @@
     - **Circles:** Draw circles by defining the center and radius.
     - **Lines:** Draw straight lines by specifying start and end points.
     - **Arrows:** Draw arrows to point out specific areas on the screen.
+    - **Curly Braces:** Draw opening `{` and closing `}` braces with automatic direction detection.
+    - **Square Brackets:** Draw opening `[` and closing `]` brackets with automatic direction detection.
+    - **Text Input:** Add text annotations at any position on the screen.
 - **Screenshot Capture:**
     
     - Capture the current state of the screen as a screenshot and save it as a `.png` file.
-- **Undo Functionality:**
+- **Undo/Redo System:**
     
-    - Undo up to 20 previous drawing actions.
+    - Full undo/redo functionality with up to 20 levels of history.
+    - Standard keyboard shortcuts: `Ctrl+Z` for undo, `Shift+Ctrl+Z` for redo.
+    - Backward compatibility: `u` key still works for undo.
 - **Color Selection:**
     
-    - Choose from a palette of predefined colors to customize your drawings.
+    - Choose from a palette of 6 predefined colors (red, green, blue, yellow, orange, white).
+    - Enhanced navigation: Use arrow keys (`←`/`→`) or spacebar to cycle colors.
 - **Step Counter:**
     
     - Display a step counter for drawings made with the freehand tool.
@@ -28,22 +34,33 @@
 - Use the mouse to draw on the screen.
 - Click and hold to start drawing freehand shapes.
 - Release the mouse button to complete the shape.
-- Press the following keys to switch between tools:
-    - `c`: Circle
-    - `r`: Rectangle
+### Drawing Tools
+- Press the following keys to switch between drawing tools:
     - `p`: Pen (Freehand drawing)
-    - `a`: Arrow
     - `l`: Line
-    - `t`: Input text at cursor current position
-- Press `space` to change the pen color or press:
-	- `y`: Yellow
-	- `g`: Green
-	- `b`: Blue
-	- `w`: White
-	- `0`: Reset to Red
-- Press `s` to take a screenshot, copy it to the clipboard and exit.
-- Press `f` to take a screenshot and save it as a PNG file.
-- Press `u` to undo the last action (limited history).
+    - `a`: Arrow
+    - `r`: Rectangle
+    - `c`: Circle
+    - `k`: Curly Braces `{` `}` (direction auto-detected by drag direction)
+    - `b`: Square Brackets `[` `]` (direction auto-detected by drag direction)
+    - `t`: Text input at cursor position
+
+### Color Controls
+- `Space`: Cycle to next color
+- `←` / `→`: Navigate backward/forward through color palette
+
+### Undo/Redo
+- `Ctrl+Z`: Undo last action
+- `Shift+Ctrl+Z`: Redo last undone action
+- `u`: Undo (backward compatibility)
+
+### Screenshot Tools
+- `s`: Capture screenshot, copy to clipboard, and exit
+- `f`: Capture screenshot and save as PNG file
+
+### Other
+- `n`: Add numbered step counter
+- `ESC`: Exit zPen
 ## Requirements:
 
 - Linux system
@@ -86,17 +103,9 @@ dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/name "'
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding "['<Super>p']"
 ```
 
-### Key Controls
-
-- `p`: Select the freehand pen tool.
-- `r`: Select the rectangle tool.
-- `c`: Select the circle tool.
-- `l`: Select the line tool.
-- `a`: Select the arrow tool.
-- `t`: Text input
-- `s`: Capture a screenshot to clipboard
-- `f`: Capture a screenshot to file
-- ``
+### Direction Detection
+- **Curly Braces (`k`)**: Drag left-to-right for `{`, drag right-to-left for `}`
+- **Square Brackets (`b`)**: Drag left-to-right for `[`, drag right-to-left for `]`
 
 ### Mouse Controls
 
@@ -106,7 +115,7 @@ dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding
 
 ## Screenshot Saving
 
-Screenshots are saved in the `~/.zpen` directory with the format `img_YYYY-MM-DDTHH-MM-SS.png`.
+Screenshots are automatically saved in the `~/.zpen` directory with timestamp-based filenames in the format `imgYYYYMMDDHHMMSS.png`. The directory is created automatically if it doesn't exist.
 
 ## License
 
@@ -116,6 +125,28 @@ This project is licensed under the terms of the MIT license. See the LICENSE fil
 
 Contributions are welcome! Please submit a pull request or open an issue to discuss potential changes.
 
+## Quick Reference
+
+| Category | Key | Function |
+|----------|-----|----------|
+| **Drawing** | `p` | Pen (freehand) |
+| | `l` | Line |
+| | `a` | Arrow |
+| | `r` | Rectangle |
+| | `c` | Circle |
+| | `k` | Curly braces `{` `}` |
+| | `b` | Square brackets `[` `]` |
+| | `t` | Text input |
+| **Colors** | `Space` | Next color |
+| | `←` `→` | Navigate colors |
+| **Actions** | `Ctrl+Z` | Undo |
+| | `Shift+Ctrl+Z` | Redo |
+| | `u` | Undo (legacy) |
+| | `n` | Add number |
+| **Screenshot** | `s` | Save & exit |
+| | `f` | Save to file |
+| **System** | `ESC` | Exit |
+
 ---
 
-This `README.md` provides an overview of the project, features, installation instructions, usage guidelines, and information on how to contribute. Feel free to modify it to better suit your project's needs or to include additional details.
+**zPen** combines the simplicity of a drawing tool with powerful features for annotation, documentation, and screen capture. Perfect for presentations, tutorials, code reviews, and quick visual communication.
