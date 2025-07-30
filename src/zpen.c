@@ -756,11 +756,15 @@ int main()
   // We show the window
   XMapWindow(d, w);
 
-  // Prepare the undo levels
+  // Prepare the undo/redo levels
   int maxUndo = 0;
   int undoLevel = 0;
+  int maxRedo = 0;
+  int redoLevel = 0;
   Pixmap undoStack[UNDO_MAX];
+  Pixmap redoStack[UNDO_MAX];
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
+  initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
 
   // https://tronche.com/gui/x/xlib/appendix/b/
   setShapeCursor(d, w, &cursor, shape);
@@ -806,6 +810,9 @@ int main()
           drawPath(d, w, gc, &path);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          // Clear redo stack when new action is performed
+          maxRedo = 0;
+          redoLevel = 0;
         }
       }
       break;
@@ -845,6 +852,9 @@ int main()
           XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          // Clear redo stack when new action is performed
+          maxRedo = 0;
+          redoLevel = 0;
           drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         }
         f_screenshot = 0;
@@ -1159,14 +1169,37 @@ int main()
             stepCnt = 0;
           XDrawString(d, w, gc, e.xbutton.x, e.xbutton.y, s, strlen(s));
         }
-        else if (e.xkey.keycode == 30 /* u undo */)
+        else if (e.xkey.keycode == 30 /* u undo */ || 
+                 (e.xkey.state & ControlMask && e.xkey.keycode == 52)) /* Ctrl+Z */
         {
           if (maxUndo > 0)
           { // if there are levels that can be undone
-            undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : --undoLevel;
-            maxUndo = (maxUndo < 0) ? 0 : --maxUndo;
+            // Save current state to redo stack before undoing
+            XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
+            redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
+            maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
+            
+            // Perform undo
+            undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
+            maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;
             // restore the saved background
             XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+          }
+        }
+        else if (e.xkey.state & ControlMask && e.xkey.state & ShiftMask && e.xkey.keycode == 52) /* Shift+Ctrl+Z redo */
+        {
+          if (maxRedo > 0)
+          { // if there are levels that can be redone
+            // Save current state to undo stack before redoing
+            XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+            undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
+            maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
+            
+            // Perform redo
+            redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
+            maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
+            // restore the saved background
+            XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
       }
