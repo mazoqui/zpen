@@ -867,6 +867,20 @@ int main()
           XSetForeground(d, gcPreDraw, color_list[color_index]);
           drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
+        else if (e.xkey.keycode == 114 /* RIGHT arrow next color*/)
+        {
+          color_index = (color_index + 1) % MAX_COLORS;
+          XSetForeground(d, gc, color_list[color_index]);
+          XSetForeground(d, gcPreDraw, color_list[color_index]);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
+        }
+        else if (e.xkey.keycode == 113 /* LEFT arrow previous color*/)
+        {
+          color_index = (color_index - 1 + MAX_COLORS) % MAX_COLORS;
+          XSetForeground(d, gc, color_list[color_index]);
+          XSetForeground(d, gcPreDraw, color_list[color_index]);
+          drawCircle(d, w, gc, width - 10, height - 10, 2);
+        }
         else if (e.xkey.keycode == 19 /* 0 (reset to red) */)
         {
           color = 0xFF3333;
