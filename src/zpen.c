@@ -530,6 +530,85 @@ void drawClosingBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y
 }
 
 /**
+ * draws an opening square bracket on the screen
+ * x0, y0 : top point of the bracket
+ * x1, y1 : bottom point of the bracket
+ * */
+void drawOpeningBracket(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  int height = abs(y1 - y0);
+  int width = abs(x1 - x0);
+  int leftX = (x0 < x1) ? x0 : x1;
+  int topY = (y0 < y1) ? y0 : y1;
+  int rightX = leftX + width;
+  int bottomY = topY + height;
+  int sixthW = width / 6;
+  
+  // Opening bracket [ - simple rectangular shape
+  // Top horizontal line
+  XDrawLine(d, w, gc, leftX + width/3, topY, rightX - sixthW/2, topY);
+  // Top right curve downward
+  XDrawLine(d, w, gc, rightX - sixthW/2, topY, rightX - sixthW/3, topY + sixthW/2);
+  XDrawLine(d, w, gc, rightX - sixthW/3, topY + sixthW/2, rightX - sixthW/4, topY + sixthW);
+  // Right side vertical line (no middle angle)
+  XDrawLine(d, w, gc, rightX - sixthW/4, topY + sixthW, rightX - sixthW/4, bottomY - sixthW);
+  // Bottom right curve upward
+  XDrawLine(d, w, gc, rightX - sixthW/4, bottomY - sixthW, rightX - sixthW/3, bottomY - sixthW/2);
+  XDrawLine(d, w, gc, rightX - sixthW/3, bottomY - sixthW/2, rightX - sixthW/2, bottomY);
+  // Bottom horizontal line
+  XDrawLine(d, w, gc, rightX - sixthW/2, bottomY, leftX + width/3, bottomY);
+}
+
+/**
+ * draws a closing square bracket on the screen
+ * x0, y0 : top point of the bracket
+ * x1, y1 : bottom point of the bracket
+ * */
+void drawClosingBracket(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  int height = abs(y1 - y0);
+  int width = abs(x1 - x0);
+  int leftX = (x0 < x1) ? x0 : x1;
+  int topY = (y0 < y1) ? y0 : y1;
+  int rightX = leftX + width;
+  int bottomY = topY + height;
+  int sixthW = width / 6;
+  
+  // Closing bracket ] - simple rectangular shape
+  // Top horizontal line
+  XDrawLine(d, w, gc, rightX - width/3, topY, leftX + sixthW/2, topY);
+  // Top left curve downward
+  XDrawLine(d, w, gc, leftX + sixthW/2, topY, leftX + sixthW/3, topY + sixthW/2);
+  XDrawLine(d, w, gc, leftX + sixthW/3, topY + sixthW/2, leftX + sixthW/4, topY + sixthW);
+  // Left side vertical line (no middle angle)
+  XDrawLine(d, w, gc, leftX + sixthW/4, topY + sixthW, leftX + sixthW/4, bottomY - sixthW);
+  // Bottom left curve upward
+  XDrawLine(d, w, gc, leftX + sixthW/4, bottomY - sixthW, leftX + sixthW/3, bottomY - sixthW/2);
+  XDrawLine(d, w, gc, leftX + sixthW/3, bottomY - sixthW/2, leftX + sixthW/2, bottomY);
+  // Bottom horizontal line
+  XDrawLine(d, w, gc, leftX + sixthW/2, bottomY, rightX - width/3, bottomY);
+}
+
+/**
+ * draws a square bracket on the screen (auto-detects opening/closing based on direction)
+ * x0, y0 : first point of the bracket
+ * x1, y1 : second point of the bracket
+ * */
+void drawBracket(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  // If dragging left to right, draw opening bracket
+  // If dragging right to left, draw closing bracket
+  if (x1 >= x0)
+  {
+    drawOpeningBracket(d, w, gc, x0, y0, x1, y1);
+  }
+  else
+  {
+    drawClosingBracket(d, w, gc, x0, y0, x1, y1);
+  }
+}
+
+/**
  * draws a curly brace on the screen (auto-detects opening/closing based on direction)
  * x0, y0 : first point of the brace
  * x1, y1 : second point of the brace
@@ -595,6 +674,9 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     break;
   case 'k':
     setCursor(d, w, cursor, XC_tcross);
+    break;
+  case 'b':
+    setCursor(d, w, cursor, XC_left_side);
     break;
   }
 }
@@ -808,6 +890,19 @@ int main()
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
       }
       break;
+      case 'b':
+      { // predraw is deleted before saving the undo level
+        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
+        {
+          drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        }
+        // save the background at the current position and increment it
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        drawBracket(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+      }
+      break;
       }
       // restart the points and the predraw tool
       p = 0;
@@ -838,6 +933,10 @@ int main()
           break;
         case 'k':
           drawBrace(d, w, gcPreDraw,
+                   rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          break;
+        case 'b':
+          drawBracket(d, w, gcPreDraw,
                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         }
@@ -874,6 +973,10 @@ int main()
         break;
       case 'k':
         drawBrace(d, w, gcPreDraw,
+                 rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        break;
+      case 'b':
+        drawBracket(d, w, gcPreDraw,
                  rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       }
@@ -1026,11 +1129,11 @@ int main()
           XSetForeground(d, gcPreDraw, color);
           drawCircle(d, w, gc, width - 10, height - 10, 2);
         }
-        else if (e.xkey.keycode == 56 /* b blue */)
+        else if (e.xkey.keycode == 56 /* b bracket */)
         {
-          color = 0x3333FF;
-          XSetForeground(d, gc, color);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
+          shape = 'b';
+          p = 0;
+          setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 25 /* w white */)
         {
