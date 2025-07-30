@@ -455,22 +455,37 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
 void drawOpeningBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 {
   int height = abs(y1 - y0);
-  int width = abs(x1 - x0) / 3;
+  int width = abs(x1 - x0);
   int midY = (y0 + y1) / 2;
   int leftX = (x0 < x1) ? x0 : x1;
   int topY = (y0 < y1) ? y0 : y1;
+  int rightX = leftX + width;
+  int bottomY = topY + height;
+  int quarterH = height / 4;
+  int sixthW = width / 6;
+  int indentAmount = width / 4; // Shallow indent, not all the way to left
   
-  // Top horizontal line
-  XDrawLine(d, w, gc, leftX + width, topY, leftX + width * 2, topY);
-  // Top vertical line
-  XDrawLine(d, w, gc, leftX + width, topY, leftX + width, topY + height / 4);
-  // Middle indent
-  XDrawLine(d, w, gc, leftX + width, topY + height / 4, leftX, midY);
-  XDrawLine(d, w, gc, leftX, midY, leftX + width, topY + height * 3 / 4);
-  // Bottom vertical line
-  XDrawLine(d, w, gc, leftX + width, topY + height * 3 / 4, leftX + width, topY + height);
-  // Bottom horizontal line
-  XDrawLine(d, w, gc, leftX + width, topY + height, leftX + width * 2, topY + height);
+  // Opening brace { with shallow middle indent
+  // Top horizontal section  
+  XDrawLine(d, w, gc, leftX + width/3, topY, rightX - sixthW/2, topY);
+  // Top right curve downward
+  XDrawLine(d, w, gc, rightX - sixthW/2, topY, rightX - sixthW/3, topY + sixthW/2);
+  XDrawLine(d, w, gc, rightX - sixthW/3, topY + sixthW/2, rightX - sixthW/4, topY + sixthW);
+  // Right side to upper middle
+  XDrawLine(d, w, gc, rightX - sixthW/4, topY + sixthW, rightX - sixthW/4, midY - quarterH/2);
+  // Gentle curve outward for upper middle (angle RIGHT - inverted)
+  XDrawLine(d, w, gc, rightX - sixthW/4, midY - quarterH/2, rightX + indentAmount, midY - sixthW/3);
+  XDrawLine(d, w, gc, rightX + indentAmount, midY - sixthW/3, rightX + indentAmount + sixthW/4, midY);
+  // Gentle curve inward for lower middle (back from right bulge)
+  XDrawLine(d, w, gc, rightX + indentAmount + sixthW/4, midY, rightX + indentAmount, midY + sixthW/3);
+  XDrawLine(d, w, gc, rightX + indentAmount, midY + sixthW/3, rightX - sixthW/4, midY + quarterH/2);
+  // Right side from lower middle to bottom
+  XDrawLine(d, w, gc, rightX - sixthW/4, midY + quarterH/2, rightX - sixthW/4, bottomY - sixthW);
+  // Bottom right curve upward
+  XDrawLine(d, w, gc, rightX - sixthW/4, bottomY - sixthW, rightX - sixthW/3, bottomY - sixthW/2);
+  XDrawLine(d, w, gc, rightX - sixthW/3, bottomY - sixthW/2, rightX - sixthW/2, bottomY);
+  // Bottom horizontal section
+  XDrawLine(d, w, gc, rightX - sixthW/2, bottomY, leftX + width/3, bottomY);
 }
 
 /**
@@ -481,22 +496,37 @@ void drawOpeningBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y
 void drawClosingBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 {
   int height = abs(y1 - y0);
-  int width = abs(x1 - x0) / 3;
+  int width = abs(x1 - x0);
   int midY = (y0 + y1) / 2;
   int leftX = (x0 < x1) ? x0 : x1;
   int topY = (y0 < y1) ? y0 : y1;
+  int rightX = leftX + width;
+  int bottomY = topY + height;
+  int quarterH = height / 4;
+  int sixthW = width / 6;
+  int bulgeAmount = width / 4; // Shallow bulge, not all the way to right
   
-  // Top horizontal line
-  XDrawLine(d, w, gc, leftX, topY, leftX + width, topY);
-  // Top vertical line
-  XDrawLine(d, w, gc, leftX + width, topY, leftX + width, topY + height / 4);
-  // Middle indent
-  XDrawLine(d, w, gc, leftX + width, topY + height / 4, leftX + width * 2, midY);
-  XDrawLine(d, w, gc, leftX + width * 2, midY, leftX + width, topY + height * 3 / 4);
-  // Bottom vertical line
-  XDrawLine(d, w, gc, leftX + width, topY + height * 3 / 4, leftX + width, topY + height);
-  // Bottom horizontal line
-  XDrawLine(d, w, gc, leftX, topY + height, leftX + width, topY + height);
+  // Closing brace } with shallow middle bulge
+  // Top horizontal section
+  XDrawLine(d, w, gc, rightX - width/3, topY, leftX + sixthW/2, topY);
+  // Top left curve downward
+  XDrawLine(d, w, gc, leftX + sixthW/2, topY, leftX + sixthW/3, topY + sixthW/2);
+  XDrawLine(d, w, gc, leftX + sixthW/3, topY + sixthW/2, leftX + sixthW/4, topY + sixthW);
+  // Left side to upper middle
+  XDrawLine(d, w, gc, leftX + sixthW/4, topY + sixthW, leftX + sixthW/4, midY - quarterH/2);
+  // Gentle curve outward for upper middle (angle LEFT - inverted)
+  XDrawLine(d, w, gc, leftX + sixthW/4, midY - quarterH/2, leftX - bulgeAmount, midY - sixthW/3);
+  XDrawLine(d, w, gc, leftX - bulgeAmount, midY - sixthW/3, leftX - bulgeAmount - sixthW/4, midY);
+  // Gentle curve inward for lower middle (back from left indent)
+  XDrawLine(d, w, gc, leftX - bulgeAmount - sixthW/4, midY, leftX - bulgeAmount, midY + sixthW/3);
+  XDrawLine(d, w, gc, leftX - bulgeAmount, midY + sixthW/3, leftX + sixthW/4, midY + quarterH/2);
+  // Left side from lower middle to bottom
+  XDrawLine(d, w, gc, leftX + sixthW/4, midY + quarterH/2, leftX + sixthW/4, bottomY - sixthW);
+  // Bottom left curve upward
+  XDrawLine(d, w, gc, leftX + sixthW/4, bottomY - sixthW, leftX + sixthW/3, bottomY - sixthW/2);
+  XDrawLine(d, w, gc, leftX + sixthW/3, bottomY - sixthW/2, leftX + sixthW/2, bottomY);
+  // Bottom horizontal section
+  XDrawLine(d, w, gc, leftX + sixthW/2, bottomY, rightX - width/3, bottomY);
 }
 
 /**
