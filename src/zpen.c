@@ -448,6 +448,77 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
 }
 
 /**
+ * draws an opening curly brace on the screen
+ * x0, y0 : top point of the brace
+ * x1, y1 : bottom point of the brace
+ * */
+void drawOpeningBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  int height = abs(y1 - y0);
+  int width = abs(x1 - x0) / 3;
+  int midY = (y0 + y1) / 2;
+  int leftX = (x0 < x1) ? x0 : x1;
+  int topY = (y0 < y1) ? y0 : y1;
+  
+  // Top horizontal line
+  XDrawLine(d, w, gc, leftX + width, topY, leftX + width * 2, topY);
+  // Top vertical line
+  XDrawLine(d, w, gc, leftX + width, topY, leftX + width, topY + height / 4);
+  // Middle indent
+  XDrawLine(d, w, gc, leftX + width, topY + height / 4, leftX, midY);
+  XDrawLine(d, w, gc, leftX, midY, leftX + width, topY + height * 3 / 4);
+  // Bottom vertical line
+  XDrawLine(d, w, gc, leftX + width, topY + height * 3 / 4, leftX + width, topY + height);
+  // Bottom horizontal line
+  XDrawLine(d, w, gc, leftX + width, topY + height, leftX + width * 2, topY + height);
+}
+
+/**
+ * draws a closing curly brace on the screen
+ * x0, y0 : top point of the brace
+ * x1, y1 : bottom point of the brace
+ * */
+void drawClosingBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  int height = abs(y1 - y0);
+  int width = abs(x1 - x0) / 3;
+  int midY = (y0 + y1) / 2;
+  int leftX = (x0 < x1) ? x0 : x1;
+  int topY = (y0 < y1) ? y0 : y1;
+  
+  // Top horizontal line
+  XDrawLine(d, w, gc, leftX, topY, leftX + width, topY);
+  // Top vertical line
+  XDrawLine(d, w, gc, leftX + width, topY, leftX + width, topY + height / 4);
+  // Middle indent
+  XDrawLine(d, w, gc, leftX + width, topY + height / 4, leftX + width * 2, midY);
+  XDrawLine(d, w, gc, leftX + width * 2, midY, leftX + width, topY + height * 3 / 4);
+  // Bottom vertical line
+  XDrawLine(d, w, gc, leftX + width, topY + height * 3 / 4, leftX + width, topY + height);
+  // Bottom horizontal line
+  XDrawLine(d, w, gc, leftX, topY + height, leftX + width, topY + height);
+}
+
+/**
+ * draws a curly brace on the screen (auto-detects opening/closing based on direction)
+ * x0, y0 : first point of the brace
+ * x1, y1 : second point of the brace
+ * */
+void drawBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  // If dragging left to right, draw opening brace
+  // If dragging right to left, draw closing brace
+  if (x1 >= x0)
+  {
+    drawOpeningBrace(d, w, gc, x0, y0, x1, y1);
+  }
+  else
+  {
+    drawClosingBrace(d, w, gc, x0, y0, x1, y1);
+  }
+}
+
+/**
  * Initializes undo levels that will contain "screenshots" of the state of the undo
  */
 void initUndo(Pixmap *p, Display *d, Window w, int screen, unsigned int width, unsigned int height, int undoMax)
@@ -490,6 +561,9 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     setCursor(d, w, cursor, XC_ur_angle);
     break;
   case 'l':
+    setCursor(d, w, cursor, XC_tcross);
+    break;
+  case 'k':
     setCursor(d, w, cursor, XC_tcross);
     break;
   }
@@ -691,6 +765,19 @@ int main()
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
       }
       break;
+      case 'k':
+      { // predraw is deleted before saving the undo level
+        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
+        {
+          drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        }
+        // save the background at the current position and increment it
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+      }
+      break;
       }
       // restart the points and the predraw tool
       p = 0;
@@ -717,6 +804,10 @@ int main()
           break;
         case 'l':
           drawLine(d, w, gcPreDraw,
+                   rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          break;
+        case 'k':
+          drawBrace(d, w, gcPreDraw,
                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         }
@@ -749,6 +840,10 @@ int main()
         break;
       case 'l':
         drawLine(d, w, gcPreDraw,
+                 rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        break;
+      case 'k':
+        drawBrace(d, w, gcPreDraw,
                  rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       }
@@ -830,6 +925,12 @@ int main()
         else if (e.xkey.keycode == 46 /* l line */)
         {
           shape = 'l';
+          p = 0;
+          setShapeCursor(d, w, &cursor, shape);
+        }
+        else if (e.xkey.keycode == 45 /* k brace */)
+        {
+          shape = 'k';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
