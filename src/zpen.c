@@ -327,7 +327,7 @@ void addPoint(Path *p, int x, int y)
 
 void smoothPath(Path *path, int smoothing_level)
 {
-  if (smoothing_level <= 1)
+  if (smoothing_level <= 1 || path->count < 3)
     return;
 
   Point smoothed_points[MAX_POINTS];
@@ -335,19 +335,28 @@ void smoothPath(Path *path, int smoothing_level)
 
   for (int i = 0; i < path->count; i++)
   {
-    int sum_x = 0, sum_y = 0, count = 0;
-    for (int j = -smoothing_level; j <= smoothing_level; j++)
+    if (i == 0 || i == path->count - 1)
     {
-      int index = i + j;
-      if (index >= 0 && index < path->count)
-      {
-        sum_x += path->points[index].x;
-        sum_y += path->points[index].y;
-        count++;
-      }
+      // Preserve first and last points exactly to avoid gaps
+      smoothed_points[smoothed_count] = path->points[i];
     }
-    smoothed_points[smoothed_count].x = sum_x / count;
-    smoothed_points[smoothed_count].y = sum_y / count;
+    else
+    {
+      // Apply smoothing only to interior points
+      int sum_x = 0, sum_y = 0, count = 0;
+      for (int j = -smoothing_level; j <= smoothing_level; j++)
+      {
+        int index = i + j;
+        if (index >= 0 && index < path->count)
+        {
+          sum_x += path->points[index].x;
+          sum_y += path->points[index].y;
+          count++;
+        }
+      }
+      smoothed_points[smoothed_count].x = sum_x / count;
+      smoothed_points[smoothed_count].y = sum_y / count;
+    }
     smoothed_count++;
   }
 
@@ -843,6 +852,8 @@ int main()
       {
         drawing = 1;
         path.count = 0; // Clear the current path
+        // Add the initial click point to the path
+        addPoint(&path, e.xbutton.x, e.xbutton.y);
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
       }
     case Expose:
@@ -1010,10 +1021,13 @@ int main()
       case 'p':
         if (drawing)
         {
-          addPoint(&path, e.xbutton.x, e.xbutton.y);
+          addPoint(&path, e.xmotion.x, e.xmotion.y);
           if (path.count > 1)
           {
-            drawPath(d, w, gcPreDraw, &path);
+            // Draw the line from previous point to current point immediately (no smoothing)
+            XDrawLine(d, w, gcPreDraw, 
+                     path.points[path.count-2].x, path.points[path.count-2].y,
+                     path.points[path.count-1].x, path.points[path.count-1].y);
           }
         }
         break;
