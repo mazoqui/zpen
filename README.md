@@ -1,4 +1,4 @@
-# zpen
+# zPen
 
 **zPen** is a powerful drawing tool for Linux systems written using Xlib. It allows you to create various shapes, lines, freehand drawings, and special characters on your screen. Additionally, you can take screenshots, navigate colors efficiently, and use full undo/redo functionality with standard keyboard shortcuts.
 ## Features
@@ -61,15 +61,16 @@
 ### Other
 - `n`: Add numbered step counter
 - `ESC`: Exit zPen
-## Requirements:
 
+## Requirements:
 - Linux system
 - X Window System
 
-## xclip for clipboard management
-Install xclip if required (pre-installed in most common linux distributions)
+## Install dependencies
 
-`sudo apt install xclip`
+`sudo apt install libx11-dev xclip`
+
+> **xclip** is useful for clipboard management and is pre-installed in most common linux distributions
 
 ## Installation
 
