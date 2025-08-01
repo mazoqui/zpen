@@ -61,15 +61,16 @@
 ### Other
 - `n`: Add numbered step counter
 - `ESC`: Exit zPen
-## Requirements:
 
+## Requirements:
 - Linux system
 - X Window System
 
-## xclip for clipboard management
-Install xclip if required (pre-installed in most common linux distributions)
+## Install dependencies
 
-`sudo apt install xclip`
+`sudo apt install libx11-dev xclip`
+
+> **xclip** is useful for clipboard management and is pre-installed in most common linux distributions
 
 ## Installation
 
