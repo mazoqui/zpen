@@ -30,7 +30,7 @@
 
 #define PI 3.14159265358979323846 /* pi */
 #define MAX_POINTS 10000
-#define MAX_COLORS 6
+#define MAX_COLORS 9
 #define SMOOTHING_LEVEL 7
 #define SMOOTHED_LINE_WIDTH 4
 #define THICKNESS 3
@@ -448,6 +448,54 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
 }
 
 /**
+ * draws the horizontal color palette at the bottom-right of the screen
+ * */
+void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, int color_list[], int selected_color_index)
+{
+  int circle_size = 8;  // Small circle size
+  int gap = 4;          // Small gap between circles
+  int palette_width = MAX_COLORS * circle_size + (MAX_COLORS - 1) * gap;
+  int start_x = screen_width - palette_width - 10;  // 10px margin from right edge
+  int y = screen_height - 10;  // Same vertical position as original indicator
+  
+  // Save current GC color
+  XGCValues values;
+  XGetGCValues(d, gc, GCForeground, &values);
+  unsigned long original_color = values.foreground;
+  
+  // Clear the palette area first (draw black rectangles to erase previous palette)
+  XSetForeground(d, gc, 0x000000);  // Black background
+  int clear_width = palette_width + 20;  // Extra margin for borders
+  int clear_height = circle_size + 6;    // Extra margin for borders
+  XFillRectangle(d, w, gc, start_x - 10, y - clear_height/2, clear_width, clear_height);
+  
+  for (int i = 0; i < MAX_COLORS; i++)
+  {
+    int x = start_x + i * (circle_size + gap);
+    
+    // Set color for this circle
+    XSetForeground(d, gc, color_list[i]);
+    
+    if (i == selected_color_index)
+    {
+      // Draw selected color with emphasis (filled circle with border)
+      XFillArc(d, w, gc, x - circle_size/2, y - circle_size/2, circle_size, circle_size, 0, 360 * 64);
+      // Add white border for selected color
+      XSetForeground(d, gc, 0xFFFFFF);
+      XDrawArc(d, w, gc, x - circle_size/2 - 1, y - circle_size/2 - 1, circle_size + 2, circle_size + 2, 0, 360 * 64);
+    }
+    else
+    {
+      // Draw non-selected colors as filled circles (no visible border)
+      XFillArc(d, w, gc, x - circle_size/2, y - circle_size/2, circle_size, circle_size, 0, 360 * 64);
+    }
+  }
+  
+  // Restore original GC color
+  XSetForeground(d, gc, original_color);
+}
+
+/**
  * draws an opening curly brace on the screen
  * x0, y0 : top point of the brace
  * x1, y1 : bottom point of the brace
@@ -693,7 +741,10 @@ int main()
       0x3333FF /* blue */,
       0xFFFF33 /* yellow */,
       0xFFA500 /* orange */,
-      0xFFFFFF /* white */
+      0xFFFFFF /* white */,
+      0xFF00FF /* magenta */,
+      0xFFC0CB /* pink */,
+      0x808080 /* gray */
   };
   int f_screenshot = 0;
   Display *d;
@@ -778,7 +829,7 @@ int main()
   int y_text = 0;
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
   // END Text input
-  drawCircle(d, w, gc, width - 10, height - 10, 2);
+  drawColorPalette(d, w, gc, width, height, color_list, color_index);
   while (True)
   {
     XNextEvent(d, &e);
@@ -1110,21 +1161,21 @@ int main()
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
         else if (e.xkey.keycode == 114 /* RIGHT arrow next color*/)
         {
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
         else if (e.xkey.keycode == 113 /* LEFT arrow previous color*/)
         {
           color_index = (color_index - 1 + MAX_COLORS) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
-          drawCircle(d, w, gc, width - 10, height - 10, 2);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
         else if (e.xkey.keycode == 56 /* b bracket */)
         {
