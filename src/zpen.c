@@ -54,6 +54,12 @@ typedef struct
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+void signal_handler(int sig)
+{
+  printf("Caught signal %d, exiting...\n", sig);
+  exit(0);
+}
+
 int convert_ppm_to_png(const char *ppm_path, const char *png_path)
 {
   FILE *file = fopen(ppm_path, "rb");
@@ -110,8 +116,6 @@ int convert_ppm_to_png(const char *ppm_path, const char *png_path)
   if (!stbi_write_png(png_path, width, height, channels, data, width * channels))
   {
     printf("Error saving PNG file: %s\n", png_path);
-    free(data);
-    return 0;
   }
 
   free(data);
@@ -132,20 +136,14 @@ int convert_ppm_to_jpeg(const char *ppm_path, const char *jpeg_path, int quality
   if (fscanf(file, "%2s\n%d %d\n%d\n", format, &width, &height, &maxval) != 4)
   {
     printf("Error reading PPM file header.\n");
-    fclose(file);
-    return 0;
   }
   if (format[0] != 'P' || format[1] != '6')
   {
     printf("Invalid PPM format. Only P6 is supported.\n");
-    fclose(file);
-    return 0;
   }
   if (maxval != 255)
   {
     printf("Unsupported max value: %d. Only images with maxval=255 are supported..\n", maxval);
-    fclose(file);
-    return 0;
   }
   // Allocate memory for image data
   int channels = 3; // RGB
@@ -154,16 +152,12 @@ int convert_ppm_to_jpeg(const char *ppm_path, const char *jpeg_path, int quality
   if (!data)
   {
     printf("Erro ao alocar memória para a imagem.\n");
-    fclose(file);
-    return 0;
   }
   // Read image data
   if (fread(data, 1, image_size, file) != image_size)
   {
     printf("Erro ao ler dados da imagem.\n");
     free(data);
-    fclose(file);
-    return 0;
   }
   fclose(file);
   // Write the image in JPEG format
@@ -292,8 +286,9 @@ void saveScreenshotFile(XImage *image, int toClipboard)
   remove("/tmp/screenshot.ppm"); // Clean the temporary file
   if (toClipboard)
   {
-    char command[200];
-    snprintf(command, sizeof(command), "xclip -selection clipboard -t image/png -i %s", filename);
+    // Increase buffer size to accommodate long filenames
+    char command[1100]; // Increased from 200 to 1100 bytes
+    snprintf(command, sizeof(command), "xclip -selection clipboard -t image/png -i \"%s\"", filename);
     int result = system(command);
     if (result == -1)
     {
@@ -305,11 +300,18 @@ void saveScreenshotFile(XImage *image, int toClipboard)
 void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1, int toClipboard)
 {
   XImage *image;
-  image = XGetImage(d, w, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
+  // Capture from root window instead of application window for Cinnamon compatibility
+  Window root = DefaultRootWindow(d);
+  image = XGetImage(d, root, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
   if (image == NULL)
   {
-    fprintf(stderr, "Failed to capture screenshot.\n");
-    return;
+    // Fallback to application window if root capture fails
+    image = XGetImage(d, w, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
+    if (image == NULL)
+    {
+      fprintf(stderr, "Failed to capture screenshot.\n");
+      return;
+    }
   }
   saveScreenshotFile(image, toClipboard);
   XDestroyImage(image);
@@ -389,7 +391,6 @@ void drawPath(Display *d, Window w, GC gc, Path *p)
  */
 void drawLine(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 {
-  // XDrawLine(d, w, gc, x0, y0, x1, y1);
   XDrawLine(d, w, gc, x0, y0, x1, y1);
 }
 
@@ -452,7 +453,6 @@ void drawRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
  * */
 void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
 {
-  // int width = abs(x1 - x0);
   XDrawArc(d, w, gc, x0 - (int)(width / 2), y0 - (int)(width / 2), width, width, 0, 360 * 64);
 }
 
@@ -461,45 +461,45 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
  * */
 void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, int color_list[], int selected_color_index)
 {
-  int circle_size = 8;  // Small circle size
-  int gap = 4;          // Small gap between circles
+  int circle_size = 8; // Small circle size
+  int gap = 4;         // Small gap between circles
   int palette_width = MAX_COLORS * circle_size + (MAX_COLORS - 1) * gap;
-  int start_x = screen_width - palette_width - 10;  // 10px margin from right edge
-  int y = screen_height - 10;  // Same vertical position as original indicator
-  
+  int start_x = screen_width - palette_width - 10; // 10px margin from right edge
+  int y = screen_height - 10;                      // Same vertical position as original indicator
+
   // Save current GC color
   XGCValues values;
   XGetGCValues(d, gc, GCForeground, &values);
   unsigned long original_color = values.foreground;
-  
+
   // Clear the palette area first (draw black rectangles to erase previous palette)
-  XSetForeground(d, gc, 0x000000);  // Black background
-  int clear_width = palette_width + 20;  // Extra margin for borders
-  int clear_height = circle_size + 6;    // Extra margin for borders
-  XFillRectangle(d, w, gc, start_x - 10, y - clear_height/2, clear_width, clear_height);
-  
+  XSetForeground(d, gc, 0x000000);      // Black background
+  int clear_width = palette_width + 20; // Extra margin for borders
+  int clear_height = circle_size + 6;   // Extra margin for borders
+  XFillRectangle(d, w, gc, start_x - 10, y - clear_height / 2, clear_width, clear_height);
+
   for (int i = 0; i < MAX_COLORS; i++)
   {
     int x = start_x + i * (circle_size + gap);
-    
+
     // Set color for this circle
     XSetForeground(d, gc, color_list[i]);
-    
+
     if (i == selected_color_index)
     {
       // Draw selected color with emphasis (filled circle with border)
-      XFillArc(d, w, gc, x - circle_size/2, y - circle_size/2, circle_size, circle_size, 0, 360 * 64);
+      XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
       // Add white border for selected color
       XSetForeground(d, gc, 0xFFFFFF);
-      XDrawArc(d, w, gc, x - circle_size/2 - 1, y - circle_size/2 - 1, circle_size + 2, circle_size + 2, 0, 360 * 64);
+      XDrawArc(d, w, gc, x - circle_size / 2 - 1, y - circle_size / 2 - 1, circle_size + 2, circle_size + 2, 0, 360 * 64);
     }
     else
     {
       // Draw non-selected colors as filled circles (no visible border)
-      XFillArc(d, w, gc, x - circle_size/2, y - circle_size/2, circle_size, circle_size, 0, 360 * 64);
+      XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
     }
   }
-  
+
   // Restore original GC color
   XSetForeground(d, gc, original_color);
 }
@@ -723,7 +723,6 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     setCursor(d, w, cursor, XC_sizing);
     break;
   case 'a':
-    // setCursor(d, w, cursor, XC_right_ptr);
     setCursor(d, w, cursor, XC_ur_angle);
     break;
   case 'l':
@@ -738,11 +737,35 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
   }
 }
 
+Pixmap captureInitialScreenshot(Display *d, Window root, int screen, unsigned int width, unsigned int height)
+{
+  XImage *image = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
+  if (image == NULL)
+  {
+    fprintf(stderr, "Failed to capture initial screenshot\n");
+    return None;
+  }
+
+  Pixmap pixmap = XCreatePixmap(d, root, width, height, XDefaultDepth(d, screen));
+  GC gc = XCreateGC(d, pixmap, 0, NULL);
+
+  XPutImage(d, pixmap, gc, image, 0, 0, 0, 0, width, height);
+
+  XFreeGC(d, gc);
+  XDestroyImage(image);
+
+  return pixmap;
+}
+
 ////////////////////////
 // MAIN
 ////////////////////////
 int main()
 {
+  // Set up signal handlers
+  signal(SIGINT, signal_handler);
+  signal(SIGTERM, signal_handler);
+
   int color_index = 0;
   int color_list[MAX_COLORS] = {
       0xFF3333 /* red */,
@@ -762,12 +785,11 @@ int main()
   XEvent e;
   GC gc;
   Cursor cursor;
-  GC gcPreDraw;        // To pre-draw the shape before painting it
-  XPoint rect[2];      // 2 points to draw a rectangle
-  XPoint pointPreDraw; // initial incorrect values, so as not to paint it without having the first point chosen
+  GC gcPreDraw;
+  XPoint rect[2];
+  XPoint pointPreDraw;
 
-  // Freehand Pen
-  char shape = 'a'; // Initial TOOL
+  char shape = 'a';
   char prv_shape = shape;
   long color = color_list[0];
   int drawing = 0;
@@ -775,8 +797,9 @@ int main()
   path.count = 0;
   pointPreDraw.x = -1;
   pointPreDraw.y = -1;
-  int p = 0; // points counter
+  int p = 0;
   int stepCnt = 1;
+
   d = XOpenDisplay(NULL);
   if (d == NULL)
   {
@@ -784,39 +807,61 @@ int main()
     exit(1);
   }
   screen = XDefaultScreen(d);
-
-  unsigned int height = DisplayHeight(d, screen); // height and width of the screen
+  unsigned int height = DisplayHeight(d, screen);
   unsigned int width = DisplayWidth(d, screen);
+  Window root = DefaultRootWindow(d);
 
-  w = XCreateWindow(d, DefaultRootWindow(d), -10, -35, width + 10, height + 35, CopyFromParent,
-                    CopyFromParent, CopyFromParent, CopyFromParent, CopyFromParent, CopyFromParent);
+  // Capture initial screenshot before creating window
+  XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
+  if (!bgImage)
+  {
+    fprintf(stderr, "Failed to capture background screenshot\n");
+    XCloseDisplay(d);
+    exit(1);
+  }
 
-  // We change to full screen
+  // Create window WITHOUT override_redirect to get proper keyboard focus
+  XSetWindowAttributes attrs;
+  attrs.event_mask = ExposureMask | ButtonPressMask | KeyPressMask |
+                     ButtonReleaseMask | ButtonMotionMask | KeyReleaseMask |
+                     FocusChangeMask | StructureNotifyMask;
+
+  w = XCreateWindow(d, root, -10, -35, width + 10, height + 35, 0,
+                    CopyFromParent, InputOutput, CopyFromParent,
+                    CWEventMask, &attrs);
+
+  // Set fullscreen property
   Atom atoms[2] = {XInternAtom(d, "_NET_WM_STATE_FULLSCREEN", False), None};
   XChangeProperty(d, w, XInternAtom(d, "_NET_WM_STATE", False), XA_ATOM, 32,
                   PropModeReplace, (unsigned char *)atoms, 1);
 
-  // We create the GC (Graphic Context) that we will use along with its attributes
+  // Create GC
   gc = XCreateGC(d, w, 0, NULL);
-
   XSetForeground(d, gc, color);
   XSetLineAttributes(d, gc, THICKNESS, LineSolid, CapRound, JoinMiter);
 
   XGCValues gcValuesPreDraw;
   gcValuesPreDraw.function = GXxor;
-  gcValuesPreDraw.foreground = color; // 0xAACCFF;
+  gcValuesPreDraw.foreground = color;
   gcPreDraw = XCreateGC(d, w, GCForeground + GCFunction, &gcValuesPreDraw);
   XSetLineAttributes(d, gcPreDraw, THICKNESS - 2, LineDoubleDash, CapRound, JoinMiter);
 
-  // The events that we are going to listen to
-  XSelectInput(d, w,
-               ExposureMask | ButtonPressMask | KeyPressMask |
-                   ButtonReleaseMask | ButtonMotionMask);
-
-  // We show the window
+  // Map window
   XMapWindow(d, w);
+  XFlush(d);
 
-  // Prepare the undo/redo levels
+  // Wait for window to be mapped and get focus
+  usleep(100000);
+
+  // Copy background to window after it's mapped
+  XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
+  XDestroyImage(bgImage);
+
+  // Set input focus to our window
+  XSetInputFocus(d, w, RevertToParent, CurrentTime);
+  XRaiseWindow(d, w);
+
+  // Prepare undo/redo levels
   int maxUndo = 0;
   int undoLevel = 0;
   int maxRedo = 0;
@@ -826,45 +871,59 @@ int main()
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
   initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
 
-  // shape cursors supported by the xlib (x11)
-  // https://tronche.com/gui/x/xlib/appendix/b/
+  // Initialize undo stack with background
+  for (int i = 0; i < UNDO_MAX; i++)
+  {
+    XCopyArea(d, w, undoStack[i], gc, 0, 0, width, height, 0, 0);
+  }
+
   setShapeCursor(d, w, &cursor, shape);
 
-  // BEGIN Text input
-  char text[256] = {0}; /* a char buffer for KeyPress Events */
-  int l_text = 0;       // text length
-  int t_text = 0;       // text input flag (1 typing | 0 not typing)
-  int x_text = 0;       // initial x cursor position
+  // Text input variables
+  char text[256] = {0};
+  int l_text = 0;
+  int t_text = 0;
+  int x_text = 0;
   int y_text = 0;
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
-  // END Text input
+
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
-  while (True)
+
+  // Main event loop
+  while (1)
   {
     XNextEvent(d, &e);
+    // Handle focus events to ensure we keep keyboard focus
+    if (e.type == FocusOut)
+    {
+      // Regain focus if we lose it
+      XSetInputFocus(d, w, RevertToParent, CurrentTime);
+      continue;
+    }
     switch (e.type)
     {
-    case ButtonPress: /* Initial position of the tool */
+    case ButtonPress:
       rect[p].x = e.xbutton.x;
       rect[p].y = e.xbutton.y;
       p++;
       if (shape == 'p')
       {
         drawing = 1;
-        path.count = 0; // Clear the current path
-        // Add the initial click point to the path
+        path.count = 0;
         addPoint(&path, e.xbutton.x, e.xbutton.y);
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
       }
+      break;
+
     case Expose:
       break;
-    case ButtonRelease: /* End position of the tool */
+
+    case ButtonRelease:
       rect[p].x = e.xbutton.x;
       rect[p].y = e.xbutton.y;
       switch (shape)
       {
       case 'p':
-      {
         if (drawing)
         {
           drawing = 0;
@@ -873,28 +932,23 @@ int main()
           drawPath(d, w, gc, &path);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-          // Clear redo stack when new action is performed
           maxRedo = 0;
           redoLevel = 0;
         }
-      }
-      break;
+        break;
+
       case 'c':
-      {
-        // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         }
-        // save the background at the current position and increment it
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawCircle(d, w, gc, rect[0].x, rect[0].y, abs(rect[1].x - rect[0].x));
-      }
-      break;
+        break;
+
       case 'r':
-      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
@@ -911,106 +965,88 @@ int main()
         }
         else
         {
-          // save the background at the current position and increment it
-          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-          // Clear redo stack when new action is performed
           maxRedo = 0;
           redoLevel = 0;
           drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         }
         f_screenshot = 0;
         setShapeCursor(d, w, &cursor, shape);
-      }
-      break;
+        break;
+
       case 'a':
-      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         }
-        // save the background at the current position and increment it
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
-      }
-      break;
+        break;
+
       case 'l':
-      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // save the background at the current position and increment it
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
-      }
-      break;
+        break;
+
       case 'k':
-      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // save the background at the current position and increment it
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
-      }
-      break;
+        break;
+
       case 'b':
-      { // predraw is deleted before saving the undo level
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // save the background at the current position and increment it
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0); // save the current background
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBracket(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+        break;
       }
-      break;
-      }
-      // restart the points and the predraw tool
       p = 0;
       pointPreDraw.x = -1;
       pointPreDraw.y = -1;
       break;
-    case MotionNotify: /* tool predraw */
+
+    case MotionNotify:
       if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
       {
-        // predraw is deleted before saving the undo level
         switch (shape)
         {
         case 'c':
-          drawCircle(d, w, gcPreDraw,
-                     rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
+          drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
           break;
         case 'r':
-          drawRetangle(d, w, gcPreDraw,
-                       rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'a':
-          drawArrow(d, w, gcPreDraw,
-                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
+          drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
           break;
         case 'l':
-          drawLine(d, w, gcPreDraw,
-                   rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'k':
-          drawBrace(d, w, gcPreDraw,
-                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'b':
-          drawBracket(d, w, gcPreDraw,
-                      rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         }
       }
@@ -1024,45 +1060,36 @@ int main()
           addPoint(&path, e.xmotion.x, e.xmotion.y);
           if (path.count > 1)
           {
-            // Draw the line from previous point to current point immediately (no smoothing)
-            XDrawLine(d, w, gcPreDraw, 
-                     path.points[path.count-2].x, path.points[path.count-2].y,
-                     path.points[path.count-1].x, path.points[path.count-1].y);
+            XDrawLine(d, w, gcPreDraw,
+                      path.points[path.count - 2].x, path.points[path.count - 2].y,
+                      path.points[path.count - 1].x, path.points[path.count - 1].y);
           }
         }
         break;
       case 'c':
-        drawCircle(d, w, gcPreDraw,
-                   rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
+        drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         break;
       case 'r':
-        drawRetangle(d, w, gcPreDraw,
-                     rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'a':
-        drawArrow(d, w, gcPreDraw,
-                  rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
+        drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         break;
       case 'l':
-        drawLine(d, w, gcPreDraw,
-                 rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'k':
-        drawBrace(d, w, gcPreDraw,
-                  rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'b':
-        drawBracket(d, w, gcPreDraw,
-                    rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       }
       XFlush(d);
       break;
+
     case KeyPress:
-      // xmodmap -pke # all keys
-      // https://stackoverflow.com/questions/12343987/convert-ascii-character-to-x11-keycode/25771958#25771958
-      // https://gist.github.com/javiercantero/7753445
-      if (t_text) // text typing
+      if (t_text)
       {
         KeySym key;
         char ltext[25];
@@ -1091,7 +1118,7 @@ int main()
           XSetFont(d, gc, ft->fid);
           XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
         }
-        if (e.xkey.keycode == 0x09 /* ESC */)
+        if (e.xkey.keycode == 0x09)
         {
           t_text = 0;
           l_text = 0;
@@ -1101,49 +1128,49 @@ int main()
           setCursor(d, w, &cursor, XC_pencil);
         }
       }
-      else // not typing
+      else
       {
-        if (e.xkey.keycode == 0x09 /* ESC */)
+        if (e.xkey.keycode == 0x09)
         {
           bye(d, w);
         }
-        else if (e.xkey.keycode == 54 /* c cicle*/)
+        else if (e.xkey.keycode == 54)
         {
           shape = 'c';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 27 /* r retangle*/)
+        else if (e.xkey.keycode == 27)
         {
           shape = 'r';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 33 /* p pen */)
+        else if (e.xkey.keycode == 33)
         {
           shape = 'p';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 38 /* a arrow*/)
+        else if (e.xkey.keycode == 38)
         {
           shape = 'a';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 46 /* l line */)
+        else if (e.xkey.keycode == 46)
         {
           shape = 'l';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 45 /* k brace */)
+        else if (e.xkey.keycode == 45)
         {
           shape = 'k';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 41 /* f save screenshot to file save*/)
+        else if (e.xkey.keycode == 41)
         {
           prv_shape = shape;
           shape = 'r';
@@ -1152,7 +1179,7 @@ int main()
           setCursor(d, w, &cursor, XC_icon);
           XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
-        else if (e.xkey.keycode == 39 /* s save screenshot, copy it to the clipboard and exit*/)
+        else if (e.xkey.keycode == 39)
         {
           prv_shape = shape;
           shape = 'r';
@@ -1161,43 +1188,42 @@ int main()
           setCursor(d, w, &cursor, XC_icon);
           XSetForeground(d, gcPreDraw, 0xFFFFFF);
         }
-        else if (e.xkey.keycode == 28 /* t inject text*/)
+        else if (e.xkey.keycode == 28)
         {
-          // userText(d, w, gc, e.xbutton.x, e.xbutton.y);
-          XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0); // save the current
+          XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_xterm);
           x_text = e.xbutton.x;
           y_text = e.xbutton.y;
           t_text = 1;
         }
-        else if (e.xkey.keycode == 65 /* space next color*/)
+        else if (e.xkey.keycode == 65)
         {
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
-        else if (e.xkey.keycode == 114 /* RIGHT arrow next color*/)
+        else if (e.xkey.keycode == 114)
         {
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
-        else if (e.xkey.keycode == 113 /* LEFT arrow previous color*/)
+        else if (e.xkey.keycode == 113)
         {
           color_index = (color_index - 1 + MAX_COLORS) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
-        else if (e.xkey.keycode == 56 /* b bracket */)
+        else if (e.xkey.keycode == 56)
         {
           shape = 'b';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 57 /* n number */)
+        else if (e.xkey.keycode == 57)
         {
           XFontStruct *ft = XLoadQueryFont(d, FONT);
           XSetFont(d, gc, ft->fid);
@@ -1208,41 +1234,34 @@ int main()
           XDrawString(d, w, gc, e.xbutton.x, e.xbutton.y, s, strlen(s));
         }
         else if ((e.xkey.state & ControlMask) && (e.xkey.state & ShiftMask) &&
-                 (e.xkey.keycode == 52 || e.xkey.keycode == 29)) /* Shift+Ctrl+Z redo */
+                 (e.xkey.keycode == 52 || e.xkey.keycode == 29))
         {
           if (maxRedo > 0)
-          { // if there are levels that can be redone
-            // Save current state to undo stack before redoing
+          {
             XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
             undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
             maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
-
-            // Perform redo
             redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
             maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
-            // restore the saved background
             XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
-        else if (e.xkey.keycode == 30 /* u undo */ ||
+        else if (e.xkey.keycode == 30 ||
                  ((e.xkey.state & ControlMask) && !(e.xkey.state & ShiftMask) &&
-                  (e.xkey.keycode == 52 || e.xkey.keycode == 29))) /* Ctrl+Z */
+                  (e.xkey.keycode == 52 || e.xkey.keycode == 29)))
         {
           if (maxUndo > 0)
-          { // if there are levels that can be undone
-            // Save current state to redo stack before undoing
+          {
             XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
             redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
             maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
-
-            // Perform undo
             undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
             maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;
-            // restore the saved background
             XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
       }
+      break;
     }
   }
   return 0;
