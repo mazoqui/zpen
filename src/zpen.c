@@ -885,6 +885,13 @@ int main()
 
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
 
+  enum
+  {
+    KeyMod_LShift = 1<<0,
+    KeyMod_LAlt = 1<<1,
+  };
+  int key_mods = 0;
+
   // Main event loop
   while (1)
   {
@@ -1130,6 +1137,14 @@ int main()
         {
           bye(d, w);
         }
+        else if (e.xkey.keycode == 50)
+        {
+          key_mods |= KeyMod_LShift;
+        }
+        else if (e.xkey.keycode == 64)
+        {
+          key_mods |= KeyMod_LAlt;
+        }
         else if (e.xkey.keycode == 54)
         {
           shape = 'c';
@@ -1142,7 +1157,7 @@ int main()
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 33)
+        else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift|KeyMod_LAlt)))
         {
           shape = 'p';
           p = 0;
@@ -1256,6 +1271,37 @@ int main()
             // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
+      }
+      break;
+
+    case KeyRelease:
+      if (t_text)
+      {
+      }
+      else
+      {
+        if (e.xkey.keycode == 0x09)
+        {
+          bye(d, w);
+        }
+        else if (e.xkey.keycode == 50)
+        {
+          key_mods &= ~KeyMod_LShift;
+        }
+        else if (e.xkey.keycode == 64)
+        {
+          key_mods &= ~KeyMod_LAlt;
+        }
+        /*
+        else if (e.xkey.keycode == 33 && (key_mods & (KeyMod_LShift|KeyMod_LAlt))==(KeyMod_LShift|KeyMod_LAlt))
+        {
+          printf("KEKW\n");
+          attrs.event_mask = ExposureMask | FocusChangeMask | StructureNotifyMask;
+          XChangeWindowAttributes(d, w, CWEventMask, &attrs);
+          XLowerWindow(d, w);
+          XSetInputFocus(d, PointerRoot, RevertToPointerRoot, CurrentTime);
+        }
+        */
       }
       break;
     }

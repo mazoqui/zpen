@@ -276,6 +276,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Screenshot** | `s` | Save & exit |
 | | `f` | Save to file |
 | **System** | `ESC` | Exit |
+| | `LShift+LAlt+p` | Swap focus between zPen and applications bellow |
 
 ---
 
