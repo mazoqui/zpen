@@ -21,6 +21,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -29,7 +30,6 @@
 #include <unistd.h>
 
 #define PI 3.14159265358979323846 /* pi */
-#define MAX_POINTS 10000
 #define MAX_COLORS 9
 #define SMOOTHING_LEVEL 7
 #define SMOOTHED_LINE_WIDTH 4
@@ -47,9 +47,20 @@ typedef struct
 
 typedef struct
 {
-  Point points[MAX_POINTS];
-  int count;
+  Point *items;
+  size_t count, capacity;
 } Path;
+
+// https://gist.github.com/rexim/b5b0c38f53157037923e7cdd77ce685d
+#define da_append(xs, x)                                                       \
+  do {                                                                         \
+    if ((xs)->count >= (xs)->capacity) {                                       \
+      if ((xs)->capacity == 0) (xs)->capacity = 256;                           \
+      else (xs)->capacity *= 2;                                                \
+      (xs)->items = realloc((xs)->items, (xs)->capacity*sizeof(*(xs)->items)); \
+    }                                                                          \
+    (xs)->items[(xs)->count++] = (x);                                          \
+  } while (0)
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -317,14 +328,9 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
   XDestroyImage(image);
 }
 
-void addPoint(Path *p, int x, int y)
+static inline void addPoint(Path *p, int x, int y)
 {
-  if (p->count < MAX_POINTS)
-  {
-    p->points[p->count].x = x;
-    p->points[p->count].y = y;
-    p->count++;
-  }
+  da_append(p, ((Point){x,y}));
 }
 
 void smoothPath(Path *path, int smoothing_level)
@@ -332,15 +338,14 @@ void smoothPath(Path *path, int smoothing_level)
   if (smoothing_level <= 1 || path->count < 3)
     return;
 
-  Point smoothed_points[MAX_POINTS];
-  int smoothed_count = 0;
+  Path smoothed_path = {0};
 
   for (int i = 0; i < path->count; i++)
   {
     if (i == 0 || i == path->count - 1)
     {
       // Preserve first and last points exactly to avoid gaps
-      smoothed_points[smoothed_count] = path->points[i];
+      addPoint(&smoothed_path, path->items[i].x, path->items[i].y);
     }
     else
     {
@@ -351,23 +356,22 @@ void smoothPath(Path *path, int smoothing_level)
         int index = i + j;
         if (index >= 0 && index < path->count)
         {
-          sum_x += path->points[index].x;
-          sum_y += path->points[index].y;
+          sum_x += path->items[index].x;
+          sum_y += path->items[index].y;
           count++;
         }
       }
-      smoothed_points[smoothed_count].x = sum_x / count;
-      smoothed_points[smoothed_count].y = sum_y / count;
+      addPoint(&smoothed_path, sum_x / count, sum_y / count);
     }
-    smoothed_count++;
   }
 
   // Copy back the smoothed points
-  for (int i = 0; i < smoothed_count; i++)
+  path->count = 0;
+  for (int i = 0; i < smoothed_path.count; i++)
   {
-    path->points[i] = smoothed_points[i];
+    addPoint(path, smoothed_path.items[i].x, smoothed_path.items[i].y);
   }
-  path->count = smoothed_count;
+  free(smoothed_path.items);
 }
 
 /**
@@ -379,8 +383,8 @@ void drawPath(Display *d, Window w, GC gc, Path *p)
   for (int i = 1; i < p->count; i++)
   {
     XDrawLine(d, w, gc,
-              p->points[i - 1].x, p->points[i - 1].y,
-              p->points[i].x, p->points[i].y);
+              p->items[i - 1].x, p->items[i - 1].y,
+              p->items[i].x, p->items[i].y);
   }
 }
 
@@ -793,7 +797,7 @@ int main()
   char prv_shape = shape;
   long color = color_list[0];
   int drawing = 0;
-  Path path;
+  Path path = {0};
   path.count = 0;
   pointPreDraw.x = -1;
   pointPreDraw.y = -1;
@@ -1061,8 +1065,8 @@ int main()
           if (path.count > 1)
           {
             XDrawLine(d, w, gcPreDraw,
-                      path.points[path.count - 2].x, path.points[path.count - 2].y,
-                      path.points[path.count - 1].x, path.points[path.count - 1].y);
+                      path.items[path.count - 2].x, path.items[path.count - 2].y,
+                      path.items[path.count - 1].x, path.items[path.count - 1].y);
           }
         }
         break;
