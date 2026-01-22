@@ -300,19 +300,37 @@ void saveScreenshotFile(XImage *image, int toClipboard)
 void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1, int toClipboard)
 {
   XImage *image;
+
   // Capture from root window instead of application window for Cinnamon compatibility
   Window root = DefaultRootWindow(d);
-  image = XGetImage(d, root, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
+
+  // Ensure coordinates are properly ordered
+  int x = (x0 < x1) ? x0 : x1;
+  x += 1;
+  int y = (y0 < y1) ? y0 : y1;
+  y += 1;
+  int width = abs(x1 - x0) - 1;
+  int height = abs(y1 - y0) - 1;
+
+  // Make sure we have valid dimensions
+  if (width <= 0 || height <= 0)
+  {
+    fprintf(stderr, "Invalid screenshot dimensions: %dx%d\n", width, height);
+    return;
+  }
+
+  image = XGetImage(d, root, x, y, width, height, AllPlanes, ZPixmap);
   if (image == NULL)
   {
     // Fallback to application window if root capture fails
-    image = XGetImage(d, w, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
+    image = XGetImage(d, w, x, y, width, height, AllPlanes, ZPixmap);
     if (image == NULL)
     {
       fprintf(stderr, "Failed to capture screenshot.\n");
       return;
     }
   }
+
   saveScreenshotFile(image, toClipboard);
   XDestroyImage(image);
 }
