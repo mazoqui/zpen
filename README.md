@@ -110,6 +110,10 @@ sudo pacman -S libx11 xclip gcc
    cd src
    gcc zpen.c -o zpen -lX11 -lm
    ```
+   or
+   ```bash
+   make
+   ```
 
 3. **Run:**
    ```bash
