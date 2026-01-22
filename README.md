@@ -74,6 +74,7 @@
   - `xclip` - Clipboard management (usually pre-installed)
   - `gcc` - C compiler
   - `make` (optional, for build automation)
+  - compositer like `picom` that supports transprency
 
 ### Install Dependencies
 
