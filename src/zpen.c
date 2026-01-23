@@ -469,6 +469,46 @@ void drawRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 }
 
 /**
+ * draws a rounded rectangle on the screen
+ * x0, y0 : point that marks a corner of the rectangle
+ * x1, y1 : point that marks the opposite corner of the rectangle
+ * */
+void drawRoundedRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  int height = abs(y1 - y0);
+  int width = abs(x1 - x0);
+  int x = (x0 < x1) ? x0 : x1;
+  int y = (y0 < y1) ? y0 : y1;
+
+  // Corner radius is proportional to the smaller dimension
+  int radius = (width < height ? width : height) / 5;
+  if (radius < 5) radius = 5;
+  if (radius > 30) radius = 30;
+
+  int diameter = radius * 2;
+
+  // Draw four corners (arcs)
+  // Top-left corner
+  XDrawArc(d, w, gc, x, y, diameter, diameter, 90 * 64, 90 * 64);
+  // Top-right corner
+  XDrawArc(d, w, gc, x + width - diameter, y, diameter, diameter, 0, 90 * 64);
+  // Bottom-right corner
+  XDrawArc(d, w, gc, x + width - diameter, y + height - diameter, diameter, diameter, 270 * 64, 90 * 64);
+  // Bottom-left corner
+  XDrawArc(d, w, gc, x, y + height - diameter, diameter, diameter, 180 * 64, 90 * 64);
+
+  // Draw four sides (lines)
+  // Top side
+  XDrawLine(d, w, gc, x + radius, y, x + width - radius, y);
+  // Right side
+  XDrawLine(d, w, gc, x + width, y + radius, x + width, y + height - radius);
+  // Bottom side
+  XDrawLine(d, w, gc, x + radius, y + height, x + width - radius, y + height);
+  // Left side
+  XDrawLine(d, w, gc, x, y + radius, x, y + height - radius);
+}
+
+/**
  * draws a circle on the screen
  * x0, y0 : point that marks a corner of the rectangle
  * x1, y1 : point that marks the opposite corner of the rectangle
@@ -793,6 +833,7 @@ int main()
 
   char shape = 'a';
   char prv_shape = shape;
+  int roundedRect = 1;
   long color = color_list[0];
   int drawing = 0;
   Path path = {0};
@@ -970,7 +1011,10 @@ int main()
       case 'r':
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
-          drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          if (roundedRect && !f_screenshot)
+            drawRoundedRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          else
+            drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
         if (f_screenshot)
         {
@@ -989,7 +1033,10 @@ int main()
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
           redoLevel = 0;
-          drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          if (roundedRect)
+            drawRoundedRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          else
+            drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         }
         f_screenshot = 0;
         setShapeCursor(d, w, &cursor, shape);
@@ -1053,7 +1100,10 @@ int main()
           drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
           break;
         case 'r':
-          drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          if (roundedRect && !f_screenshot)
+            drawRoundedRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          else
+            drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'a':
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
@@ -1089,7 +1139,10 @@ int main()
         drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         break;
       case 'r':
-        drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        if (roundedRect && !f_screenshot)
+          drawRoundedRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        else
+          drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'a':
         drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
@@ -1169,8 +1222,15 @@ int main()
         }
         else if (e.xkey.keycode == 27)
         {
-          shape = 'r';
-          p = 0;
+          if (shape == 'r')
+          {
+            roundedRect = !roundedRect;
+          }
+          else
+          {
+            shape = 'r';
+            p = 0;
+          }
           setShapeCursor(d, w, &cursor, shape);
         }
         else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift|KeyMod_LAlt)))
