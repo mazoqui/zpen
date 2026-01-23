@@ -689,6 +689,18 @@ void drawBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 }
 
 /**
+ * grabs dimension information about the window
+ * *width, *height : output values for width and height
+ * */
+void getDimensions(Display *d, Window w, unsigned int *width, unsigned int *height)
+{
+  static XWindowAttributes attrg;
+  XGetWindowAttributes(d, w, &attrg);
+  *width = attrg.width;
+  *height = attrg.height;
+}
+
+/**
  * Initializes undo levels that will contain "screenshots" of the state of the undo
  */
 void initUndo(Pixmap *p, Display *d, Window w, int screen, unsigned int width, unsigned int height, int undoMax)
@@ -817,7 +829,7 @@ int main()
   attrs.border_pixel = 0;
   attrs.background_pixel = 0;
 
-  w = XCreateWindow(d, root, -10, -35, width + 10, height + 35, 0,
+  w = XCreateWindow(d, root, 0, 0, width, height, 0,
                     vinfo.depth, InputOutput, vinfo.visual,
                     CWEventMask | CWColormap | CWBorderPixel | CWBackPixel, &attrs);
 
@@ -863,6 +875,8 @@ int main()
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
   initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
 
+  getDimensions(d, w, &width, &height);
+
   /* Currently broken
   // Initialize undo stack with background
   for (int i = 0; i < UNDO_MAX; i++)
@@ -870,7 +884,6 @@ int main()
     XCopyArea(d, w, undoStack[i], gc, 0, 0, width, height, 0, 0);
   }
   */
-
 
   
   setShapeCursor(d, w, &cursor, shape);
@@ -882,7 +895,7 @@ int main()
   int x_text = 0;
   int y_text = 0;
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
-
+  
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
 
   enum
@@ -895,6 +908,14 @@ int main()
   // Main event loop
   while (1)
   {
+    {
+      unsigned int ow = width, oh = height;
+      getDimensions(d, w, &width, &height);
+      if (ow != width || oh != height)
+      {
+        drawColorPalette(d, w, gc, width, height, color_list, color_index);
+      }
+    }
     XNextEvent(d, &e);
     // Handle focus events to ensure we keep keyboard focus
     if (e.type == FocusOut)
@@ -1201,7 +1222,7 @@ int main()
         }
         else if (e.xkey.keycode == 28)
         {
-          XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
+          // XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_xterm);
           x_text = e.xbutton.x;
           y_text = e.xbutton.y;
