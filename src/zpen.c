@@ -709,11 +709,11 @@ void drawBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 /**
  * Initializes undo levels that will contain "screenshots" of the state of the undo
  */
-void initUndo(Pixmap *p, Display *d, Window w, int screen, unsigned int width, unsigned int height, int undoMax)
+void initUndo(Pixmap *p, Display *d, Window w, unsigned int width, unsigned int height, int depth, int undoMax)
 {
   for (int i = 0; i < undoMax; i++)
   {
-    p[i] = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
+    p[i] = XCreatePixmap(d, w, width, height, depth);
   }
 }
 
@@ -878,16 +878,14 @@ int main()
   int redoLevel = 0;
   Pixmap undoStack[UNDO_MAX];
   Pixmap redoStack[UNDO_MAX];
-  initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
-  initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
+  initUndo(undoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
+  initUndo(redoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
 
-  /* Currently broken
   // Initialize undo stack with background
   for (int i = 0; i < UNDO_MAX; i++)
   {
     XCopyArea(d, w, undoStack[i], gc, 0, 0, width, height, 0, 0);
   }
-  */
 
 
   
@@ -899,7 +897,7 @@ int main()
   int t_text = 0;
   int x_text = 0;
   int y_text = 0;
-  Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
+  Pixmap textPixMap = XCreatePixmap(d, w, width, height, vinfo.depth);
 
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
 
@@ -932,7 +930,7 @@ int main()
         drawing = 1;
         path.count = 0;
         addPoint(&path, e.xbutton.x, e.xbutton.y);
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
       }
       break;
 
@@ -948,7 +946,7 @@ int main()
         if (drawing)
         {
           drawing = 0;
-          // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+          XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           smoothPath(&path, SMOOTHING_LEVEL);
           drawPath(d, w, gc, &path);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
@@ -963,7 +961,7 @@ int main()
         {
           drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawCircle(d, w, gc, rect[0].x, rect[0].y, abs(rect[1].x - rect[0].x));
@@ -986,7 +984,7 @@ int main()
         }
         else
         {
-          // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
@@ -1002,7 +1000,7 @@ int main()
         {
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
@@ -1013,7 +1011,7 @@ int main()
         {
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1024,7 +1022,7 @@ int main()
         {
           drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1035,7 +1033,7 @@ int main()
         {
           drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBracket(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1127,7 +1125,7 @@ int main()
         {
           text[--l_text] = 0x00;
           XClearWindow(d, w);
-          // XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
           XFlush(d);
         }
@@ -1145,7 +1143,7 @@ int main()
           l_text = 0;
           *text = 0x00;
           XClearWindow(d, w);
-          // XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_pencil);
         }
       }
@@ -1267,12 +1265,12 @@ int main()
         {
           if (maxRedo > 0)
           {
-            // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
             undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
             maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
             redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
             maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
-            // XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
         else if (e.xkey.keycode == 30 ||
@@ -1281,12 +1279,12 @@ int main()
         {
           if (maxUndo > 0)
           {
-            // XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
             redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
             maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
             undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
             maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;
-            // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
       }
