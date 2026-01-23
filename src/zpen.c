@@ -16,6 +16,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
+#include <X11/Xlocale.h>
 #include <signal.h>
 #include <time.h>
 #include <math.h>
@@ -28,6 +29,7 @@
 #include <errno.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <locale.h>
 
 #define PI 3.14159265358979323846 /* pi */
 #define MAX_COLORS 9
@@ -804,6 +806,9 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
 ////////////////////////
 int main()
 {
+  // Set up locale for international text input
+  setlocale(LC_ALL, "");
+
   // Set up signal handlers
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
@@ -917,7 +922,33 @@ int main()
   // Set input focus to our window
   XSetInputFocus(d, w, RevertToParent, CurrentTime);
   XRaiseWindow(d, w);
-  
+
+  // Set up XIM for international text input (composed characters like ç, á, ã)
+  XIM xim = NULL;
+  XIC xic = NULL;
+  if (XSupportsLocale())
+  {
+    XSetLocaleModifiers("");
+    xim = XOpenIM(d, NULL, NULL, NULL);
+    if (xim)
+    {
+      xic = XCreateIC(xim,
+                      XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+                      XNClientWindow, w,
+                      XNFocusWindow, w,
+                      NULL);
+    }
+  }
+
+  // Create fontset for UTF-8 text rendering
+  char **missing_list;
+  int missing_count;
+  char *default_string;
+  XFontSet fontset = XCreateFontSet(d, "-*-helvetica-medium-r-*-*-18-*-*-*-*-*-*-*,-*-*-medium-r-*-*-18-*-*-*-*-*-*-*",
+                                    &missing_list, &missing_count, &default_string);
+  if (missing_count > 0)
+    XFreeStringList(missing_list);
+
   // Prepare undo/redo levels
   int maxUndo = 0;
   int undoLevel = 0;
@@ -960,6 +991,11 @@ int main()
   while (1)
   {
     XNextEvent(d, &e);
+
+    // Let XIM process the event for dead key composition (é, á, ã, etc.)
+    if (XFilterEvent(&e, None))
+      continue;  // Event was consumed by XIM, skip processing
+
     // Handle focus events to ensure we keep keyboard focus
     if (e.type == FocusOut)
     {
@@ -1170,10 +1206,24 @@ int main()
     case KeyPress:
       if (t_text)
       {
-        KeySym key;
-        char ltext[25];
-        int n = XLookupString(&e.xkey, ltext, sizeof(ltext) - 1, &key, NULL);
+        KeySym key = NoSymbol;
+        Status status;
+        char ltext[64];
+        int n = 0;
+
+        // Use XIM if available for composed character support (ç, á, ã, etc.)
+        if (xic)
+        {
+          n = Xutf8LookupString(xic, &e.xkey, ltext, sizeof(ltext) - 1, &key, &status);
+          if (status == XBufferOverflow)
+            n = 0;  // Buffer too small, ignore
+        }
+        else
+        {
+          n = XLookupString(&e.xkey, ltext, sizeof(ltext) - 1, &key, NULL);
+        }
         ltext[n] = 0x00;
+
         if (key == XK_Return || e.xkey.keycode == 104)
         {
           l_text = 0;
@@ -1183,19 +1233,25 @@ int main()
         }
         else if (key == XK_BackSpace && l_text > 0)
         {
-          text[--l_text] = 0x00;
+          // Remove last UTF-8 character (may be multiple bytes)
+          while (l_text > 0 && (text[l_text - 1] & 0xC0) == 0x80)
+            l_text--;  // Skip continuation bytes
+          if (l_text > 0)
+            l_text--;  // Remove the start byte
+          text[l_text] = 0x00;
           XClearWindow(d, w);
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
+          if (fontset)
+            XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
           XFlush(d);
         }
-        else if (n > 0 && isprint(ltext[0]) && l_text < sizeof(text) - 1)
+        else if (n > 0 && (unsigned char)ltext[0] >= 32 && l_text + n < sizeof(text) - 1)
         {
+          // Accept any printable character (including UTF-8 multi-byte)
           strcat(text, ltext);
           l_text += n;
-          XFontStruct *ft = XLoadQueryFont(d, FONT);
-          XSetFont(d, gc, ft->fid);
-          XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
+          if (fontset)
+            XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
         }
         if (e.xkey.keycode == 0x09)
         {
