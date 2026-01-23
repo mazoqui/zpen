@@ -54,14 +54,18 @@ typedef struct
 } Path;
 
 // https://gist.github.com/rexim/b5b0c38f53157037923e7cdd77ce685d
-#define da_append(xs, x)                                                       \
-  do {                                                                         \
-    if ((xs)->count >= (xs)->capacity) {                                       \
-      if ((xs)->capacity == 0) (xs)->capacity = 256;                           \
-      else (xs)->capacity *= 2;                                                \
-      (xs)->items = realloc((xs)->items, (xs)->capacity*sizeof(*(xs)->items)); \
-    }                                                                          \
-    (xs)->items[(xs)->count++] = (x);                                          \
+#define da_append(xs, x)                                                         \
+  do                                                                             \
+  {                                                                              \
+    if ((xs)->count >= (xs)->capacity)                                           \
+    {                                                                            \
+      if ((xs)->capacity == 0)                                                   \
+        (xs)->capacity = 256;                                                    \
+      else                                                                       \
+        (xs)->capacity *= 2;                                                     \
+      (xs)->items = realloc((xs)->items, (xs)->capacity * sizeof(*(xs)->items)); \
+    }                                                                            \
+    (xs)->items[(xs)->count++] = (x);                                            \
   } while (0)
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -350,7 +354,7 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
 
 static inline void addPoint(Path *p, int x, int y)
 {
-  da_append(p, ((Point){x,y}));
+  da_append(p, ((Point){x, y}));
 }
 
 void smoothPath(Path *path, int smoothing_level)
@@ -484,8 +488,10 @@ void drawRoundedRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, in
 
   // Corner radius is proportional to the smaller dimension
   int radius = (width < height ? width : height) / 5;
-  if (radius < 5) radius = 5;
-  if (radius > 30) radius = 30;
+  if (radius < 5)
+    radius = 5;
+  if (radius > 30)
+    radius = 30;
 
   int diameter = radius * 2;
 
@@ -766,6 +772,23 @@ void bye(Display *d, Window w)
   exit(0);
 }
 
+/**
+ * Draw text with a cursor at the end
+ */
+void drawTextWithCursor(Display *d, Window w, GC gc, XFontSet fontset, int x, int y, const char *text, int cursor_height)
+{
+  int text_width = 0;
+  if (fontset && text && strlen(text) > 0)
+  {
+    XRectangle ink, logical;
+    XmbTextExtents(fontset, text, strlen(text), &ink, &logical);
+    text_width = logical.width;
+    XmbDrawString(d, w, fontset, gc, x, y, text, strlen(text));
+  }
+  // Draw cursor (vertical line)
+  XDrawLine(d, w, gc, x + text_width + 2, y - cursor_height + 4, x + text_width + 2, y + 4);
+}
+
 void setCursor(Display *d, Window w, Cursor *cursor, int cursorId)
 {
   *cursor = XCreateFontCursor(d, cursorId);
@@ -861,17 +884,17 @@ int main()
 
   // Capture initial screenshot before creating window
   // Actually useless and very restrictive because X11 already has transparency support.
-//   XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
-//   if (!bgImage)
-//   {
-//     fprintf(stderr, "Failed to capture background screenshot\n");
-//     XCloseDisplay(d);
-//     exit(1);
-//   }
+  //   XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
+  //   if (!bgImage)
+  //   {
+  //     fprintf(stderr, "Failed to capture background screenshot\n");
+  //     XCloseDisplay(d);
+  //     exit(1);
+  //   }
 
   XVisualInfo vinfo;
   XMatchVisualInfo(d, screen, 32, TrueColor, &vinfo);
-  
+
   // Create window WITHOUT override_redirect to get proper keyboard focus
   XSetWindowAttributes attrs;
   attrs.colormap = XCreateColormap(d, root, vinfo.visual, AllocNone);
@@ -886,13 +909,14 @@ int main()
                     CWEventMask | CWColormap | CWBorderPixel | CWBackPixel, &attrs);
 
   // Remove window decorations (title bar) using Motif hints
-  struct {
+  struct
+  {
     unsigned long flags;
     unsigned long functions;
     unsigned long decorations;
     long input_mode;
     unsigned long status;
-  } hints = {2, 0, 0, 0, 0};  // flags=2 means decorations field is valid, decorations=0 means none
+  } hints = {2, 0, 0, 0, 0}; // flags=2 means decorations field is valid, decorations=0 means none
   Atom motif_hints = XInternAtom(d, "_MOTIF_WM_HINTS", False);
   XChangeProperty(d, w, motif_hints, motif_hints, 32, PropModeReplace,
                   (unsigned char *)&hints, 5);
@@ -916,8 +940,8 @@ int main()
   usleep(100000);
 
   // Copy background to window after it's mapped
-//   XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
-//   XDestroyImage(bgImage);
+  //   XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
+  //   XDestroyImage(bgImage);
 
   // Set input focus to our window
   XSetInputFocus(d, w, RevertToParent, CurrentTime);
@@ -961,7 +985,7 @@ int main()
 
   // Draw color palette before initializing undo stack so it's included in saved states
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
-  XSync(d, False);  // Ensure palette is drawn before copying to undo stack
+  XSync(d, False); // Ensure palette is drawn before copying to undo stack
 
   // Initialize undo stack with background (including color palette)
   for (int i = 0; i < UNDO_MAX; i++)
@@ -982,8 +1006,8 @@ int main()
 
   enum
   {
-    KeyMod_LShift = 1<<0,
-    KeyMod_LAlt = 1<<1,
+    KeyMod_LShift = 1 << 0,
+    KeyMod_LAlt = 1 << 1,
   };
   int key_mods = 0;
 
@@ -994,7 +1018,7 @@ int main()
 
     // Let XIM process the event for dead key composition (é, á, ã, etc.)
     if (XFilterEvent(&e, None))
-      continue;  // Event was consumed by XIM, skip processing
+      continue; // Event was consumed by XIM, skip processing
 
     // Handle focus events to ensure we keep keyboard focus
     if (e.type == FocusOut)
@@ -1216,7 +1240,7 @@ int main()
         {
           n = Xutf8LookupString(xic, &e.xkey, ltext, sizeof(ltext) - 1, &key, &status);
           if (status == XBufferOverflow)
-            n = 0;  // Buffer too small, ignore
+            n = 0; // Buffer too small, ignore
         }
         else
         {
@@ -1229,14 +1253,26 @@ int main()
           if (e.xkey.state & ControlMask)
           {
             // Ctrl+Enter: commit current line and start new line below
+            // First redraw without cursor to commit clean text
+            XClearWindow(d, w);
+            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+            if (fontset && strlen(text) > 0)
+              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
             XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
             l_text = 0;
             *text = 0x00;
-            y_text += 24;  // Move to next line (approx line height for 18pt font)
+            y_text += 24; // Move to next line (approx line height for 18pt font)
+            // Draw cursor on new line
+            drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+            XFlush(d);
           }
           else
           {
-            // Regular Enter: finish text input
+            // Regular Enter: finish text input, redraw without cursor
+            XClearWindow(d, w);
+            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+            if (fontset && strlen(text) > 0)
+              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
             l_text = 0;
             t_text = 0;
             *text = 0x00;
@@ -1247,23 +1283,25 @@ int main()
         {
           // Remove last UTF-8 character (may be multiple bytes)
           while (l_text > 0 && (text[l_text - 1] & 0xC0) == 0x80)
-            l_text--;  // Skip continuation bytes
+            l_text--; // Skip continuation bytes
           if (l_text > 0)
-            l_text--;  // Remove the start byte
+            l_text--; // Remove the start byte
           text[l_text] = 0x00;
           XClearWindow(d, w);
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          if (fontset)
-            XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
           XFlush(d);
         }
         else if (n > 0 && (unsigned char)ltext[0] >= 32 && l_text + n < sizeof(text) - 1)
         {
           // Accept any printable character (including UTF-8 multi-byte)
+          // First clear previous cursor
+          XClearWindow(d, w);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           strcat(text, ltext);
           l_text += n;
-          if (fontset)
-            XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          XFlush(d);
         }
         if (e.xkey.keycode == 0x09)
         {
@@ -1308,7 +1346,7 @@ int main()
           }
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift|KeyMod_LAlt)))
+        else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift | KeyMod_LAlt)))
         {
           shape = 'p';
           p = 0;
@@ -1357,6 +1395,9 @@ int main()
           x_text = e.xbutton.x;
           y_text = e.xbutton.y;
           t_text = 1;
+          // Draw initial cursor
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          XFlush(d);
         }
         else if (e.xkey.keycode == 65)
         {
