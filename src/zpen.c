@@ -12,6 +12,7 @@
 // gcc zpen.c -o zpen -lX11 -lm
 //
 
+#include <assert.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -50,6 +51,127 @@ typedef struct
   Point *items;
   size_t count, capacity;
 } Path;
+
+typedef struct
+{
+  char *items;
+  size_t count, capacity;
+} StringBuilder;
+
+typedef enum
+{
+  MOD_UNDEF   = 0,
+  MOD_PEN     = 1,
+  MOD_LINE    = 2,
+  MOD_ARROW   = 3,
+  MOD_RECT    = 4,
+  MOD_CIRCLE  = 5,
+  MOD_CBRACE  = 6,
+  MOD_SBRACE  = 7,
+  MOD_TEXT    = 8,
+} ModType;
+
+typedef struct Modification Modification;
+
+struct Modification  // Fields marked with "f" must be freed at freeing a modification
+{
+  ModType type;
+  union
+  {
+    struct
+    {
+      Path path; // f
+    } d_pen;
+    struct
+    {
+      int ax, ay, bx, by;
+    } d_line; // MOD_ARROW,MOD_RECT,MOD_CBRACE,MOD_SBRAKE are using this too.
+    struct {
+      int x, y, r;
+    } d_circle;
+    struct {
+      int x, y;
+      StringBuilder sb; // f
+    } d_text;
+  };
+  Modification *prev, *next;
+};
+
+static Modification *modif_first, *modif_last;
+
+Modification *newModification()
+{
+  return calloc(sizeof(Modification), 1);
+}
+
+void addPenModification(Path path)
+{
+  assert(modif_last != NULL);
+  Modification *mod = newModification();
+  mod->type = MOD_PEN;
+  mod->d_pen.path = path;
+  modif_last->next = mod;
+  mod->prev = modif_last;
+  modif_last = mod;
+}
+
+void addLineModification(ModType type, int ax, int ay, int bx, int by)
+{
+  assert(modif_last != NULL);
+  Modification *mod = newModification();
+  mod->type = type;
+  mod->d_line.ax = ax;
+  mod->d_line.ay = ay;
+  mod->d_line.bx = bx;
+  mod->d_line.by = by;
+  modif_last->next = mod;
+  mod->prev = modif_last;
+  modif_last = mod;
+}
+
+void addCircleModification(int x, int y, int r)
+{
+  assert(modif_last != NULL);
+  Modification *mod = newModification();
+  mod->type = MOD_CIRCLE;
+  mod->d_circle.x = x;
+  mod->d_circle.y = y;
+  mod->d_circle.r = r;
+  modif_last->next = mod;
+  mod->prev = modif_last;
+  modif_last = mod;
+}
+
+// TBD: TEXT
+
+void freeModification(Modification *mod)
+{
+  if (mod->d_pen.path.items) free(mod->d_pen.path.items);
+  if (mod->d_text.sb.items) free(mod->d_text.sb.items);
+  free(mod);
+}
+
+void removeModification(Modification *mod)
+{
+  if (mod->prev) mod->prev->next = mod->next;
+  if (mod->next) mod->next->prev = mod->prev;
+  freeModification(mod);
+}
+
+void removeNextModifications(Modification *mod)
+{
+  if (mod->prev) mod->prev->next = NULL;
+  while (mod)
+  {
+    freeModification(mod);
+    mod = mod->next;
+  }
+}
+
+int getIntegerDistance(int ax, int ay, int bx, int by)
+{
+  return sqrtf((ax-bx)*(ax-bx)+(ay-by)*(ay-by));
+}
 
 // https://gist.github.com/rexim/b5b0c38f53157037923e7cdd77ce685d
 #define da_append(xs, x)                                                       \
@@ -421,7 +543,7 @@ void drawArrow(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1, int 
  * x0, y0 : point that marks a corner of the rectangle
  * x1, y1 : point that marks the opposite corner of the rectangle
  * */
-void drawRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+void drawRectangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 {
   int height = abs(y1 - y0);
   int width = abs(x1 - x0);
@@ -451,13 +573,14 @@ void drawRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 }
 
 /**
- * draws a circle on the screen
+ * draws a ring on the screen
  * x0, y0 : point that marks a corner of the rectangle
  * x1, y1 : point that marks the opposite corner of the rectangle
+ * r      : radius of ring
  * */
-void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
+void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int r)
 {
-  XDrawArc(d, w, gc, x0 - (int)(width / 2), y0 - (int)(width / 2), width, width, 0, 360 * 64);
+  XDrawArc(d, w, gc, x0 - r, y0 - r, r*2, r*2, 0, 360 * 64);
 }
 
 /**
@@ -688,6 +811,64 @@ void drawBrace(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
   }
 }
 
+void drawModifications(Display *d, Window w, GC gc)
+{
+  assert(modif_first != NULL);
+  Modification *mod = modif_first;
+  while (mod)
+  {
+    switch (mod->type)
+    {
+    case MOD_PEN:
+      drawPath(d, w, gc, &mod->d_pen.path);
+      break;
+    case MOD_LINE:
+      drawLine(d, w, gc,
+               mod->d_line.ax,
+               mod->d_line.ay,
+               mod->d_line.bx,
+               mod->d_line.by);
+      break;
+    case MOD_ARROW:
+      drawArrow(d, w, gc,
+                mod->d_line.ax,
+                mod->d_line.ay,
+                mod->d_line.bx,
+                mod->d_line.by,
+                ARROW_SIZE);
+      break;
+    case MOD_RECT:
+      drawRectangle(d, w, gc,
+                mod->d_line.ax,
+                mod->d_line.ay,
+                mod->d_line.bx,
+                mod->d_line.by);
+      break;
+    case MOD_CIRCLE:
+      drawCircle(d, w, gc,
+                mod->d_circle.x,
+                mod->d_circle.y,
+                mod->d_circle.r);
+      break;
+    case MOD_CBRACE:
+      drawBrace(d, w, gc,
+                mod->d_line.ax,
+                mod->d_line.ay,
+                mod->d_line.bx,
+                mod->d_line.by);
+      break;
+    case MOD_SBRACE:
+      drawBracket(d, w, gc,
+                  mod->d_line.ax,
+                  mod->d_line.ay,
+                  mod->d_line.bx,
+                  mod->d_line.by);
+      break;
+    }
+    mod = mod->next;
+  }
+}
+
 /**
  * grabs dimension information about the window
  * *width, *height : output values for width and height
@@ -758,6 +939,11 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
 ////////////////////////
 int main()
 {
+
+  // Initialize the modification list.
+  modif_first = newModification();
+  modif_last = modif_first;
+  
   // Set up signal handlers
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
@@ -877,15 +1063,6 @@ int main()
 
   getDimensions(d, w, &width, &height);
 
-  /* Currently broken
-  // Initialize undo stack with background
-  for (int i = 0; i < UNDO_MAX; i++)
-  {
-    XCopyArea(d, w, undoStack[i], gc, 0, 0, width, height, 0, 0);
-  }
-  */
-
-  
   setShapeCursor(d, w, &cursor, shape);
 
   // Text input variables
@@ -895,7 +1072,7 @@ int main()
   int x_text = 0;
   int y_text = 0;
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
-  
+
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
 
   enum
@@ -913,6 +1090,7 @@ int main()
       getDimensions(d, w, &width, &height);
       if (ow != width || oh != height)
       {
+        drawModifications(d, w, gc);
         drawColorPalette(d, w, gc, width, height, color_list, color_index);
       }
     }
@@ -933,9 +1111,8 @@ int main()
       if (shape == 'p')
       {
         drawing = 1;
-        path.count = 0;
+        memset(&path, 0, sizeof(path));
         addPoint(&path, e.xbutton.x, e.xbutton.y);
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
       }
       break;
 
@@ -951,31 +1128,32 @@ int main()
         if (drawing)
         {
           drawing = 0;
-          // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           smoothPath(&path, SMOOTHING_LEVEL);
           drawPath(d, w, gc, &path);
-          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-          maxRedo = 0;
-          redoLevel = 0;
+          addPenModification(path);
         }
         break;
 
       case 'c':
+        GC _gc = gc;
+        int
+          _ax = rect[0].x,
+          _ay = rect[0].y,
+          _bx = rect[1].x,
+          _by = rect[1].y;
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
-          drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
+          _gc = gcPreDraw;
+          _bx = pointPreDraw.x;
+          _by = pointPreDraw.y;
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-        drawCircle(d, w, gc, rect[0].x, rect[0].y, abs(rect[1].x - rect[0].x));
+        drawCircle(d, w, _gc, _ax, _ay, getIntegerDistance(_ax, _ay, _bx, _by));
         break;
 
       case 'r':
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
-          drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
         if (f_screenshot)
         {
@@ -994,7 +1172,7 @@ int main()
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
           redoLevel = 0;
-          drawRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          drawRectangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         }
         f_screenshot = 0;
         setShapeCursor(d, w, &cursor, shape);
@@ -1055,10 +1233,10 @@ int main()
         switch (shape)
         {
         case 'c':
-          drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
+          drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, getIntegerDistance(pointPreDraw.x, pointPreDraw.y, rect[0].x, rect[0].y));
           break;
         case 'r':
-          drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'a':
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
@@ -1094,7 +1272,7 @@ int main()
         drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         break;
       case 'r':
-        drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'a':
         drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
