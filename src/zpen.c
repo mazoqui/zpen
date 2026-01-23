@@ -1226,10 +1226,22 @@ int main()
 
         if (key == XK_Return || e.xkey.keycode == 104)
         {
-          l_text = 0;
-          t_text = 0;
-          *text = 0x00;
-          setCursor(d, w, &cursor, XC_pencil);
+          if (e.xkey.state & ControlMask)
+          {
+            // Ctrl+Enter: commit current line and start new line below
+            XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
+            l_text = 0;
+            *text = 0x00;
+            y_text += 24;  // Move to next line (approx line height for 18pt font)
+          }
+          else
+          {
+            // Regular Enter: finish text input
+            l_text = 0;
+            t_text = 0;
+            *text = 0x00;
+            setCursor(d, w, &cursor, XC_pencil);
+          }
         }
         else if (key == XK_BackSpace && l_text > 0)
         {
