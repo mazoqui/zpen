@@ -542,31 +542,25 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
   XGetGCValues(d, gc, GCForeground, &values);
   unsigned long original_color = values.foreground;
 
-  // Clear the palette area first (draw black rectangles to erase previous palette)
-  XSetForeground(d, gc, 0xFF000000);    // Opaque black background
-  int clear_width = palette_width + 20; // Extra margin for borders
-  int clear_height = circle_size + 6;   // Extra margin for borders
-  XFillRectangle(d, w, gc, start_x - 10, y - clear_height / 2, clear_width, clear_height);
-
   for (int i = 0; i < MAX_COLORS; i++)
   {
     int x = start_x + i * (circle_size + gap);
 
+    // Clear the border area first with fully transparent black to erase any previous selection indicator
+    XSetForeground(d, gc, 0x00000000);
+    XFillArc(d, w, gc, x - circle_size / 2 - 3, y - circle_size / 2 - 3, circle_size + 6, circle_size + 6, 0, 360 * 64);
+
     // Set color for this circle
     XSetForeground(d, gc, color_list[i]);
 
+    // Draw filled circle
+    XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
+
     if (i == selected_color_index)
     {
-      // Draw selected color with emphasis (filled circle with border)
-      XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
       // Add white border for selected color
       XSetForeground(d, gc, 0xFFFFFFFF);
-      XDrawArc(d, w, gc, x - circle_size / 2 - 1, y - circle_size / 2 - 1, circle_size + 2, circle_size + 2, 0, 360 * 64);
-    }
-    else
-    {
-      // Draw non-selected colors as filled circles (no visible border)
-      XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
+      XDrawArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
     }
   }
 
