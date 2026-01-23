@@ -487,11 +487,11 @@ void drawRoundedRetangle(Display *d, Window w, GC gc, int x0, int y0, int x1, in
   int y = (y0 < y1) ? y0 : y1;
 
   // Corner radius is proportional to the smaller dimension
-  int radius = (width < height ? width : height) / 5;
-  if (radius < 5)
-    radius = 5;
-  if (radius > 30)
-    radius = 30;
+  int radius = (width < height ? width : height) / 10;
+  if (radius < 3)
+    radius = 3;
+  if (radius > 15)
+    radius = 15;
 
   int diameter = radius * 2;
 
