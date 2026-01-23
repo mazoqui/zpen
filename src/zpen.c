@@ -17,6 +17,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
+#include <X11/Xlocale.h>
 #include <signal.h>
 #include <time.h>
 #include <math.h>
@@ -29,6 +30,7 @@
 #include <errno.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <locale.h>
 
 #define PI 3.14159265358979323846 /* pi */
 #define MAX_COLORS 9
@@ -174,14 +176,18 @@ int getIntegerDistance(int ax, int ay, int bx, int by)
 }
 
 // https://gist.github.com/rexim/b5b0c38f53157037923e7cdd77ce685d
-#define da_append(xs, x)                                                       \
-  do {                                                                         \
-    if ((xs)->count >= (xs)->capacity) {                                       \
-      if ((xs)->capacity == 0) (xs)->capacity = 256;                           \
-      else (xs)->capacity *= 2;                                                \
-      (xs)->items = realloc((xs)->items, (xs)->capacity*sizeof(*(xs)->items)); \
-    }                                                                          \
-    (xs)->items[(xs)->count++] = (x);                                          \
+#define da_append(xs, x)                                                         \
+  do                                                                             \
+  {                                                                              \
+    if ((xs)->count >= (xs)->capacity)                                           \
+    {                                                                            \
+      if ((xs)->capacity == 0)                                                   \
+        (xs)->capacity = 256;                                                    \
+      else                                                                       \
+        (xs)->capacity *= 2;                                                     \
+      (xs)->items = realloc((xs)->items, (xs)->capacity * sizeof(*(xs)->items)); \
+    }                                                                            \
+    (xs)->items[(xs)->count++] = (x);                                            \
   } while (0)
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -433,26 +439,44 @@ void saveScreenshotFile(XImage *image, int toClipboard)
 void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1, int toClipboard)
 {
   XImage *image;
+
   // Capture from root window instead of application window for Cinnamon compatibility
   Window root = DefaultRootWindow(d);
-  image = XGetImage(d, root, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
+
+  // Ensure coordinates are properly ordered
+  int x = (x0 < x1) ? x0 : x1;
+  x += 1;
+  int y = (y0 < y1) ? y0 : y1;
+  y += 1;
+  int width = abs(x1 - x0) - 1;
+  int height = abs(y1 - y0) - 1;
+
+  // Make sure we have valid dimensions
+  if (width <= 0 || height <= 0)
+  {
+    fprintf(stderr, "Invalid screenshot dimensions: %dx%d\n", width, height);
+    return;
+  }
+
+  image = XGetImage(d, root, x, y, width, height, AllPlanes, ZPixmap);
   if (image == NULL)
   {
     // Fallback to application window if root capture fails
-    image = XGetImage(d, w, x0, y0, x1 - x0, y1 - y0, AllPlanes, ZPixmap);
+    image = XGetImage(d, w, x, y, width, height, AllPlanes, ZPixmap);
     if (image == NULL)
     {
       fprintf(stderr, "Failed to capture screenshot.\n");
       return;
     }
   }
+
   saveScreenshotFile(image, toClipboard);
   XDestroyImage(image);
 }
 
 static inline void addPoint(Path *p, int x, int y)
 {
-  da_append(p, ((Point){x,y}));
+  da_append(p, ((Point){x, y}));
 }
 
 void smoothPath(Path *path, int smoothing_level)
@@ -573,6 +597,48 @@ void drawRectangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
 }
 
 /**
+ * draws a rounded rectangle on the screen
+ * x0, y0 : point that marks a corner of the rectangle
+ * x1, y1 : point that marks the opposite corner of the rectangle
+ * */
+void drawRoundedRectangle(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
+{
+  int height = abs(y1 - y0);
+  int width = abs(x1 - x0);
+  int x = (x0 < x1) ? x0 : x1;
+  int y = (y0 < y1) ? y0 : y1;
+
+  // Corner radius is proportional to the smaller dimension
+  int radius = (width < height ? width : height) / 10;
+  if (radius < 3)
+    radius = 3;
+  if (radius > 15)
+    radius = 15;
+
+  int diameter = radius * 2;
+
+  // Draw four corners (arcs)
+  // Top-left corner
+  XDrawArc(d, w, gc, x, y, diameter, diameter, 90 * 64, 90 * 64);
+  // Top-right corner
+  XDrawArc(d, w, gc, x + width - diameter, y, diameter, diameter, 0, 90 * 64);
+  // Bottom-right corner
+  XDrawArc(d, w, gc, x + width - diameter, y + height - diameter, diameter, diameter, 270 * 64, 90 * 64);
+  // Bottom-left corner
+  XDrawArc(d, w, gc, x, y + height - diameter, diameter, diameter, 180 * 64, 90 * 64);
+
+  // Draw four sides (lines)
+  // Top side
+  XDrawLine(d, w, gc, x + radius, y, x + width - radius, y);
+  // Right side
+  XDrawLine(d, w, gc, x + width, y + radius, x + width, y + height - radius);
+  // Bottom side
+  XDrawLine(d, w, gc, x + radius, y + height, x + width - radius, y + height);
+  // Left side
+  XDrawLine(d, w, gc, x, y + radius, x, y + height - radius);
+}
+
+/**
  * draws a ring on the screen
  * x0, y0 : point that marks a corner of the rectangle
  * x1, y1 : point that marks the opposite corner of the rectangle
@@ -586,44 +652,38 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int r)
 /**
  * draws the horizontal color palette at the bottom-right of the screen
  * */
-void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, int color_list[], int selected_color_index)
+void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, unsigned long color_list[], int selected_color_index)
 {
   int circle_size = 8; // Small circle size
   int gap = 4;         // Small gap between circles
   int palette_width = MAX_COLORS * circle_size + (MAX_COLORS - 1) * gap;
-  int start_x = screen_width - palette_width - 10; // 10px margin from right edge
-  int y = screen_height - 10;                      // Same vertical position as original indicator
+  int start_x = screen_width - palette_width - 4; // 4px margin from right edge
+  int y = screen_height - 28;                     // Position from bottom edge (accounting for -35 window offset)
 
   // Save current GC color
   XGCValues values;
   XGetGCValues(d, gc, GCForeground, &values);
   unsigned long original_color = values.foreground;
 
-  // Clear the palette area first (draw black rectangles to erase previous palette)
-  XSetForeground(d, gc, 0x000000);      // Black background
-  int clear_width = palette_width + 20; // Extra margin for borders
-  int clear_height = circle_size + 6;   // Extra margin for borders
-  XFillRectangle(d, w, gc, start_x - 10, y - clear_height / 2, clear_width, clear_height);
-
   for (int i = 0; i < MAX_COLORS; i++)
   {
     int x = start_x + i * (circle_size + gap);
 
+    // Clear the border area first with fully transparent black to erase any previous selection indicator
+    XSetForeground(d, gc, 0x00000000);
+    XFillArc(d, w, gc, x - circle_size / 2 - 3, y - circle_size / 2 - 3, circle_size + 6, circle_size + 6, 0, 360 * 64);
+
     // Set color for this circle
     XSetForeground(d, gc, color_list[i]);
 
+    // Draw filled circle
+    XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
+
     if (i == selected_color_index)
     {
-      // Draw selected color with emphasis (filled circle with border)
-      XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
       // Add white border for selected color
-      XSetForeground(d, gc, 0xFFFFFF);
-      XDrawArc(d, w, gc, x - circle_size / 2 - 1, y - circle_size / 2 - 1, circle_size + 2, circle_size + 2, 0, 360 * 64);
-    }
-    else
-    {
-      // Draw non-selected colors as filled circles (no visible border)
-      XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
+      XSetForeground(d, gc, 0xFFFFFFFF);
+      XDrawArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
     }
   }
 
@@ -884,11 +944,11 @@ void getDimensions(Display *d, Window w, unsigned int *width, unsigned int *heig
 /**
  * Initializes undo levels that will contain "screenshots" of the state of the undo
  */
-void initUndo(Pixmap *p, Display *d, Window w, int screen, unsigned int width, unsigned int height, int undoMax)
+void initUndo(Pixmap *p, Display *d, Window w, unsigned int width, unsigned int height, int depth, int undoMax)
 {
   for (int i = 0; i < undoMax; i++)
   {
-    p[i] = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
+    p[i] = XCreatePixmap(d, w, width, height, depth);
   }
 }
 
@@ -897,6 +957,23 @@ void bye(Display *d, Window w)
   XUndefineCursor(d, w);
   XCloseDisplay(d);
   exit(0);
+}
+
+/**
+ * Draw text with a cursor at the end
+ */
+void drawTextWithCursor(Display *d, Window w, GC gc, XFontSet fontset, int x, int y, const char *text, int cursor_height)
+{
+  int text_width = 0;
+  if (fontset && text && strlen(text) > 0)
+  {
+    XRectangle ink, logical;
+    XmbTextExtents(fontset, text, strlen(text), &ink, &logical);
+    text_width = logical.width;
+    XmbDrawString(d, w, fontset, gc, x, y, text, strlen(text));
+  }
+  // Draw cursor (vertical line)
+  XDrawLine(d, w, gc, x + text_width + 2, y - cursor_height + 4, x + text_width + 2, y + 4);
 }
 
 void setCursor(Display *d, Window w, Cursor *cursor, int cursorId)
@@ -939,26 +1016,28 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
 ////////////////////////
 int main()
 {
-
   // Initialize the modification list.
   modif_first = newModification();
   modif_last = modif_first;
   
+  // Set up locale for international text input
+  setlocale(LC_ALL, "");
+
   // Set up signal handlers
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
 
   int color_index = 0;
-  int color_list[MAX_COLORS] = {
-      0xFF3333 /* red */,
-      0x00FF00 /* green */,
-      0x3333FF /* blue */,
-      0xFFFF33 /* yellow */,
-      0xFFA500 /* orange */,
-      0xFFFFFF /* white */,
-      0xFF00FF /* magenta */,
-      0xFFC0CB /* pink */,
-      0x808080 /* gray */
+  unsigned long color_list[MAX_COLORS] = {
+      0xFFFF3333 /* red */,
+      0xFF00FF00 /* green */,
+      0xFF3333FF /* blue */,
+      0xFFFFFF33 /* yellow */,
+      0xFFFFA500 /* orange */,
+      0xFFFFFFFF /* white */,
+      0xFFFF00FF /* magenta */,
+      0xFFFFC0CB /* pink */,
+      0xFF808080 /* gray */
   };
   int f_screenshot = 0;
   Display *d;
@@ -973,7 +1052,8 @@ int main()
 
   char shape = 'a';
   char prv_shape = shape;
-  long color = color_list[0];
+  int roundedRect = 1;
+  unsigned long color = color_list[0];
   int drawing = 0;
   Path path = {0};
   path.count = 0;
@@ -995,17 +1075,17 @@ int main()
 
   // Capture initial screenshot before creating window
   // Actually useless and very restrictive because X11 already has transparency support.
-//   XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
-//   if (!bgImage)
-//   {
-//     fprintf(stderr, "Failed to capture background screenshot\n");
-//     XCloseDisplay(d);
-//     exit(1);
-//   }
+  //   XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
+  //   if (!bgImage)
+  //   {
+  //     fprintf(stderr, "Failed to capture background screenshot\n");
+  //     XCloseDisplay(d);
+  //     exit(1);
+  //   }
 
   XVisualInfo vinfo;
   XMatchVisualInfo(d, screen, 32, TrueColor, &vinfo);
-  
+
   // Create window WITHOUT override_redirect to get proper keyboard focus
   XSetWindowAttributes attrs;
   attrs.colormap = XCreateColormap(d, root, vinfo.visual, AllocNone);
@@ -1019,11 +1099,18 @@ int main()
                     vinfo.depth, InputOutput, vinfo.visual,
                     CWEventMask | CWColormap | CWBorderPixel | CWBackPixel, &attrs);
 
-  // Set fullscreen property
-  // No more needed because of transparentness of window.
-//   Atom atoms[2] = {XInternAtom(d, "_NET_WM_STATE_FULLSCREEN", False), None};
-//   XChangeProperty(d, w, XInternAtom(d, "_NET_WM_STATE", False), XA_ATOM, 32,
-//                   PropModeReplace, (unsigned char *)atoms, 1);
+  // Remove window decorations (title bar) using Motif hints
+  struct
+  {
+    unsigned long flags;
+    unsigned long functions;
+    unsigned long decorations;
+    long input_mode;
+    unsigned long status;
+  } hints = {2, 0, 0, 0, 0}; // flags=2 means decorations field is valid, decorations=0 means none
+  Atom motif_hints = XInternAtom(d, "_MOTIF_WM_HINTS", False);
+  XChangeProperty(d, w, motif_hints, motif_hints, 32, PropModeReplace,
+                  (unsigned char *)&hints, 5);
 
   // Create GC
   gc = XCreateGC(d, w, 0, NULL);
@@ -1044,13 +1131,39 @@ int main()
   usleep(100000);
 
   // Copy background to window after it's mapped
-//   XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
-//   XDestroyImage(bgImage);
+  //   XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
+  //   XDestroyImage(bgImage);
 
   // Set input focus to our window
   XSetInputFocus(d, w, RevertToParent, CurrentTime);
   XRaiseWindow(d, w);
-  
+
+  // Set up XIM for international text input (composed characters like ç, á, ã)
+  XIM xim = NULL;
+  XIC xic = NULL;
+  if (XSupportsLocale())
+  {
+    XSetLocaleModifiers("");
+    xim = XOpenIM(d, NULL, NULL, NULL);
+    if (xim)
+    {
+      xic = XCreateIC(xim,
+                      XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+                      XNClientWindow, w,
+                      XNFocusWindow, w,
+                      NULL);
+    }
+  }
+
+  // Create fontset for UTF-8 text rendering
+  char **missing_list;
+  int missing_count;
+  char *default_string;
+  XFontSet fontset = XCreateFontSet(d, "-*-helvetica-medium-r-*-*-18-*-*-*-*-*-*-*,-*-*-medium-r-*-*-18-*-*-*-*-*-*-*",
+                                    &missing_list, &missing_count, &default_string);
+  if (missing_count > 0)
+    XFreeStringList(missing_list);
+
   // Prepare undo/redo levels
   int maxUndo = 0;
   int undoLevel = 0;
@@ -1058,10 +1171,15 @@ int main()
   int redoLevel = 0;
   Pixmap undoStack[UNDO_MAX];
   Pixmap redoStack[UNDO_MAX];
-  initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
-  initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
+  initUndo(undoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
+  initUndo(redoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
 
+  // Needed to get window's dimensions that might be different from the screen dimesions because fullscreening is disable.
   getDimensions(d, w, &width, &height);
+  
+  // Draw color palette before initializing undo stack so it's included in saved states
+  drawColorPalette(d, w, gc, width, height, color_list, color_index);
+  XFlush(d);
 
   setShapeCursor(d, w, &cursor, shape);
 
@@ -1071,14 +1189,12 @@ int main()
   int t_text = 0;
   int x_text = 0;
   int y_text = 0;
-  Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
-
-  drawColorPalette(d, w, gc, width, height, color_list, color_index);
+  Pixmap textPixMap = XCreatePixmap(d, w, width, height, vinfo.depth);
 
   enum
   {
-    KeyMod_LShift = 1<<0,
-    KeyMod_LAlt = 1<<1,
+    KeyMod_LShift = 1 << 0,
+    KeyMod_LAlt = 1 << 1,
   };
   int key_mods = 0;
 
@@ -1095,6 +1211,11 @@ int main()
       }
     }
     XNextEvent(d, &e);
+
+    // Let XIM process the event for dead key composition (é, á, ã, etc.)
+    if (XFilterEvent(&e, None))
+      continue; // Event was consumed by XIM, skip processing
+
     // Handle focus events to ensure we keep keyboard focus
     if (e.type == FocusOut)
     {
@@ -1153,7 +1274,10 @@ int main()
       case 'r':
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
-          drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          if (roundedRect && !f_screenshot)
+            drawRoundedRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          else
+            drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
         if (f_screenshot)
         {
@@ -1167,12 +1291,15 @@ int main()
         }
         else
         {
-          // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
           redoLevel = 0;
-          drawRectangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          if (roundedRect)
+            drawRoundedRectangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          else
+            drawRectangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         }
         f_screenshot = 0;
         setShapeCursor(d, w, &cursor, shape);
@@ -1183,7 +1310,7 @@ int main()
         {
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
@@ -1194,7 +1321,7 @@ int main()
         {
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1205,7 +1332,7 @@ int main()
         {
           drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1216,7 +1343,7 @@ int main()
         {
           drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBracket(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1236,7 +1363,10 @@ int main()
           drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, getIntegerDistance(pointPreDraw.x, pointPreDraw.y, rect[0].x, rect[0].y));
           break;
         case 'r':
-          drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          if (roundedRect && !f_screenshot)
+            drawRoundedRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+          else
+            drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'a':
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
@@ -1272,7 +1402,10 @@ int main()
         drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         break;
       case 'r':
-        drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        if (roundedRect && !f_screenshot)
+          drawRoundedRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
+        else
+          drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       case 'a':
         drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
@@ -1293,32 +1426,78 @@ int main()
     case KeyPress:
       if (t_text)
       {
-        KeySym key;
-        char ltext[25];
-        int n = XLookupString(&e.xkey, ltext, sizeof(ltext) - 1, &key, NULL);
+        KeySym key = NoSymbol;
+        Status status;
+        char ltext[64];
+        int n = 0;
+
+        // Use XIM if available for composed character support (ç, á, ã, etc.)
+        if (xic)
+        {
+          n = Xutf8LookupString(xic, &e.xkey, ltext, sizeof(ltext) - 1, &key, &status);
+          if (status == XBufferOverflow)
+            n = 0; // Buffer too small, ignore
+        }
+        else
+        {
+          n = XLookupString(&e.xkey, ltext, sizeof(ltext) - 1, &key, NULL);
+        }
         ltext[n] = 0x00;
+
         if (key == XK_Return || e.xkey.keycode == 104)
         {
-          l_text = 0;
-          t_text = 0;
-          *text = 0x00;
-          setCursor(d, w, &cursor, XC_pencil);
+          if (e.xkey.state & ControlMask)
+          {
+            // Ctrl+Enter: commit current line and start new line below
+            // First redraw without cursor to commit clean text
+            XClearWindow(d, w);
+            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+            if (fontset && strlen(text) > 0)
+              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+            XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
+            l_text = 0;
+            *text = 0x00;
+            y_text += 24; // Move to next line (approx line height for 18pt font)
+            // Draw cursor on new line
+            drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+            XFlush(d);
+          }
+          else
+          {
+            // Regular Enter: finish text input, redraw without cursor
+            XClearWindow(d, w);
+            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+            if (fontset && strlen(text) > 0)
+              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+            l_text = 0;
+            t_text = 0;
+            *text = 0x00;
+            setCursor(d, w, &cursor, XC_pencil);
+          }
         }
         else if (key == XK_BackSpace && l_text > 0)
         {
-          text[--l_text] = 0x00;
+          // Remove last UTF-8 character (may be multiple bytes)
+          while (l_text > 0 && (text[l_text - 1] & 0xC0) == 0x80)
+            l_text--; // Skip continuation bytes
+          if (l_text > 0)
+            l_text--; // Remove the start byte
+          text[l_text] = 0x00;
           XClearWindow(d, w);
-          // XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
           XFlush(d);
         }
-        else if (n > 0 && isprint(ltext[0]) && l_text < sizeof(text) - 1)
+        else if (n > 0 && (unsigned char)ltext[0] >= 32 && l_text + n < sizeof(text) - 1)
         {
+          // Accept any printable character (including UTF-8 multi-byte)
+          // First clear previous cursor
+          XClearWindow(d, w);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           strcat(text, ltext);
           l_text += n;
-          XFontStruct *ft = XLoadQueryFont(d, FONT);
-          XSetFont(d, gc, ft->fid);
-          XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          XFlush(d);
         }
         if (e.xkey.keycode == 0x09)
         {
@@ -1326,7 +1505,7 @@ int main()
           l_text = 0;
           *text = 0x00;
           XClearWindow(d, w);
-          // XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_pencil);
         }
       }
@@ -1352,11 +1531,18 @@ int main()
         }
         else if (e.xkey.keycode == 27)
         {
-          shape = 'r';
-          p = 0;
+          if (shape == 'r')
+          {
+            roundedRect = !roundedRect;
+          }
+          else
+          {
+            shape = 'r';
+            p = 0;
+          }
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift|KeyMod_LAlt)))
+        else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift | KeyMod_LAlt)))
         {
           shape = 'p';
           p = 0;
@@ -1387,7 +1573,7 @@ int main()
           p = 0;
           f_screenshot = 1;
           setCursor(d, w, &cursor, XC_icon);
-          XSetForeground(d, gcPreDraw, 0xFFFFFF);
+          XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
         }
         else if (e.xkey.keycode == 39)
         {
@@ -1396,7 +1582,7 @@ int main()
           p = 0;
           f_screenshot = 2;
           setCursor(d, w, &cursor, XC_icon);
-          XSetForeground(d, gcPreDraw, 0xFFFFFF);
+          XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
         }
         else if (e.xkey.keycode == 28)
         {
@@ -1405,6 +1591,9 @@ int main()
           x_text = e.xbutton.x;
           y_text = e.xbutton.y;
           t_text = 1;
+          // Draw initial cursor
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          XFlush(d);
         }
         else if (e.xkey.keycode == 65)
         {
@@ -1448,12 +1637,12 @@ int main()
         {
           if (maxRedo > 0)
           {
-            // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
             undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
             maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
             redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
             maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
-            // XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
         else if (e.xkey.keycode == 30 ||
@@ -1462,12 +1651,12 @@ int main()
         {
           if (maxUndo > 0)
           {
-            // XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
             redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
             maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
             undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
             maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;
-            // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+            XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
       }

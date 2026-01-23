@@ -8,7 +8,7 @@
 - **Drawing Tools:**
     
     - **Freehand Drawing:** Draw freehand on the screen with smoothing capabilities.
-    - **Rectangles:** Draw rectangles by clicking and dragging.
+    - **Rectangles:** Draw rectangles with rounded corners (default) or straight corners. Press `r` again to toggle.
     - **Circles:** Draw circles by defining the center and radius.
     - **Lines:** Draw straight lines by specifying start and end points.
     - **Arrows:** Draw arrows to point out specific areas on the screen.
@@ -43,7 +43,7 @@
     - `p`: Pen (Freehand drawing)
     - `l`: Line
     - `a`: Arrow
-    - `r`: Rectangle
+    - `r`: Rectangle (press again to toggle rounded/straight corners)
     - `c`: Circle
     - `k`: Curly Braces `{` `}` (direction auto-detected by drag direction)
     - `b`: Square Brackets `[` `]` (direction auto-detected by drag direction)
@@ -261,7 +261,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Drawing** | `p` | Pen (freehand) |
 | | `l` | Line |
 | | `a` | Arrow |
-| | `r` | Rectangle |
+| | `r` | Rectangle (toggle rounded/straight) |
 | | `c` | Circle |
 | | `k` | Curly braces `{` `}` |
 | | `b` | Square brackets `[` `]` |
