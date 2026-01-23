@@ -521,13 +521,13 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
 /**
  * draws the horizontal color palette at the bottom-right of the screen
  * */
-void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, int color_list[], int selected_color_index)
+void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, unsigned long color_list[], int selected_color_index)
 {
   int circle_size = 8; // Small circle size
   int gap = 4;         // Small gap between circles
   int palette_width = MAX_COLORS * circle_size + (MAX_COLORS - 1) * gap;
   int start_x = screen_width - palette_width - 10; // 10px margin from right edge
-  int y = screen_height - 10;                      // Same vertical position as original indicator
+  int y = screen_height - 50;                      // Position from bottom edge
 
   // Save current GC color
   XGCValues values;
@@ -535,7 +535,7 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
   unsigned long original_color = values.foreground;
 
   // Clear the palette area first (draw black rectangles to erase previous palette)
-  XSetForeground(d, gc, 0x000000);      // Black background
+  XSetForeground(d, gc, 0xFF000000);    // Opaque black background
   int clear_width = palette_width + 20; // Extra margin for borders
   int clear_height = circle_size + 6;   // Extra margin for borders
   XFillRectangle(d, w, gc, start_x - 10, y - clear_height / 2, clear_width, clear_height);
@@ -552,7 +552,7 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
       // Draw selected color with emphasis (filled circle with border)
       XFillArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
       // Add white border for selected color
-      XSetForeground(d, gc, 0xFFFFFF);
+      XSetForeground(d, gc, 0xFFFFFFFF);
       XDrawArc(d, w, gc, x - circle_size / 2 - 1, y - circle_size / 2 - 1, circle_size + 2, circle_size + 2, 0, 360 * 64);
     }
     else
@@ -809,16 +809,16 @@ int main()
   signal(SIGTERM, signal_handler);
 
   int color_index = 0;
-  int color_list[MAX_COLORS] = {
-      0xFF3333 /* red */,
-      0x00FF00 /* green */,
-      0x3333FF /* blue */,
-      0xFFFF33 /* yellow */,
-      0xFFA500 /* orange */,
-      0xFFFFFF /* white */,
-      0xFF00FF /* magenta */,
-      0xFFC0CB /* pink */,
-      0x808080 /* gray */
+  unsigned long color_list[MAX_COLORS] = {
+      0xFFFF3333 /* red */,
+      0xFF00FF00 /* green */,
+      0xFF3333FF /* blue */,
+      0xFFFFFF33 /* yellow */,
+      0xFFFFA500 /* orange */,
+      0xFFFFFFFF /* white */,
+      0xFFFF00FF /* magenta */,
+      0xFFFFC0CB /* pink */,
+      0xFF808080 /* gray */
   };
   int f_screenshot = 0;
   Display *d;
@@ -834,7 +834,7 @@ int main()
   char shape = 'a';
   char prv_shape = shape;
   int roundedRect = 1;
-  long color = color_list[0];
+  unsigned long color = color_list[0];
   int drawing = 0;
   Path path = {0};
   path.count = 0;
@@ -880,11 +880,17 @@ int main()
                     vinfo.depth, InputOutput, vinfo.visual,
                     CWEventMask | CWColormap | CWBorderPixel | CWBackPixel, &attrs);
 
-  // Set fullscreen property
-  // No more needed because of transparentness of window.
-//   Atom atoms[2] = {XInternAtom(d, "_NET_WM_STATE_FULLSCREEN", False), None};
-//   XChangeProperty(d, w, XInternAtom(d, "_NET_WM_STATE", False), XA_ATOM, 32,
-//                   PropModeReplace, (unsigned char *)atoms, 1);
+  // Remove window decorations (title bar) using Motif hints
+  struct {
+    unsigned long flags;
+    unsigned long functions;
+    unsigned long decorations;
+    long input_mode;
+    unsigned long status;
+  } hints = {2, 0, 0, 0, 0};  // flags=2 means decorations field is valid, decorations=0 means none
+  Atom motif_hints = XInternAtom(d, "_MOTIF_WM_HINTS", False);
+  XChangeProperty(d, w, motif_hints, motif_hints, 32, PropModeReplace,
+                  (unsigned char *)&hints, 5);
 
   // Create GC
   gc = XCreateGC(d, w, 0, NULL);
@@ -922,14 +928,17 @@ int main()
   initUndo(undoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
   initUndo(redoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
 
-  // Initialize undo stack with background
+  // Draw color palette before initializing undo stack so it's included in saved states
+  drawColorPalette(d, w, gc, width, height, color_list, color_index);
+  XSync(d, False);  // Ensure palette is drawn before copying to undo stack
+
+  // Initialize undo stack with background (including color palette)
   for (int i = 0; i < UNDO_MAX; i++)
   {
     XCopyArea(d, w, undoStack[i], gc, 0, 0, width, height, 0, 0);
   }
+  XFlush(d);
 
-
-  
   setShapeCursor(d, w, &cursor, shape);
 
   // Text input variables
@@ -939,8 +948,6 @@ int main()
   int x_text = 0;
   int y_text = 0;
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, vinfo.depth);
-
-  drawColorPalette(d, w, gc, width, height, color_list, color_index);
 
   enum
   {
@@ -1264,7 +1271,7 @@ int main()
           p = 0;
           f_screenshot = 1;
           setCursor(d, w, &cursor, XC_icon);
-          XSetForeground(d, gcPreDraw, 0xFFFFFF);
+          XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
         }
         else if (e.xkey.keycode == 39)
         {
@@ -1273,7 +1280,7 @@ int main()
           p = 0;
           f_screenshot = 2;
           setCursor(d, w, &cursor, XC_icon);
-          XSetForeground(d, gcPreDraw, 0xFFFFFF);
+          XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
         }
         else if (e.xkey.keycode == 28)
         {
