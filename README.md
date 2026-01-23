@@ -74,6 +74,7 @@
   - `xclip` - Clipboard management (usually pre-installed)
   - `gcc` - C compiler
   - `make` (optional, for build automation)
+  - compositer like `picom` that supports transprency
 
 ### Install Dependencies
 
@@ -108,6 +109,10 @@ sudo pacman -S libx11 xclip gcc
    ```bash
    cd src
    gcc zpen.c -o zpen -lX11 -lm
+   ```
+   or
+   ```bash
+   make
    ```
 
 3. **Run:**
@@ -271,6 +276,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Screenshot** | `s` | Save & exit |
 | | `f` | Save to file |
 | **System** | `ESC` | Exit |
+| | `LShift+LAlt+p` | Swap focus between zPen and applications bellow |
 
 ---
 

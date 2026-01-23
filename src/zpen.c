@@ -21,6 +21,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -29,7 +30,6 @@
 #include <unistd.h>
 
 #define PI 3.14159265358979323846 /* pi */
-#define MAX_POINTS 10000
 #define MAX_COLORS 9
 #define SMOOTHING_LEVEL 7
 #define SMOOTHED_LINE_WIDTH 4
@@ -47,9 +47,20 @@ typedef struct
 
 typedef struct
 {
-  Point points[MAX_POINTS];
-  int count;
+  Point *items;
+  size_t count, capacity;
 } Path;
+
+// https://gist.github.com/rexim/b5b0c38f53157037923e7cdd77ce685d
+#define da_append(xs, x)                                                       \
+  do {                                                                         \
+    if ((xs)->count >= (xs)->capacity) {                                       \
+      if ((xs)->capacity == 0) (xs)->capacity = 256;                           \
+      else (xs)->capacity *= 2;                                                \
+      (xs)->items = realloc((xs)->items, (xs)->capacity*sizeof(*(xs)->items)); \
+    }                                                                          \
+    (xs)->items[(xs)->count++] = (x);                                          \
+  } while (0)
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -335,14 +346,9 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
   XDestroyImage(image);
 }
 
-void addPoint(Path *p, int x, int y)
+static inline void addPoint(Path *p, int x, int y)
 {
-  if (p->count < MAX_POINTS)
-  {
-    p->points[p->count].x = x;
-    p->points[p->count].y = y;
-    p->count++;
-  }
+  da_append(p, ((Point){x,y}));
 }
 
 void smoothPath(Path *path, int smoothing_level)
@@ -350,15 +356,14 @@ void smoothPath(Path *path, int smoothing_level)
   if (smoothing_level <= 1 || path->count < 3)
     return;
 
-  Point smoothed_points[MAX_POINTS];
-  int smoothed_count = 0;
+  Path smoothed_path = {0};
 
   for (int i = 0; i < path->count; i++)
   {
     if (i == 0 || i == path->count - 1)
     {
       // Preserve first and last points exactly to avoid gaps
-      smoothed_points[smoothed_count] = path->points[i];
+      addPoint(&smoothed_path, path->items[i].x, path->items[i].y);
     }
     else
     {
@@ -369,23 +374,22 @@ void smoothPath(Path *path, int smoothing_level)
         int index = i + j;
         if (index >= 0 && index < path->count)
         {
-          sum_x += path->points[index].x;
-          sum_y += path->points[index].y;
+          sum_x += path->items[index].x;
+          sum_y += path->items[index].y;
           count++;
         }
       }
-      smoothed_points[smoothed_count].x = sum_x / count;
-      smoothed_points[smoothed_count].y = sum_y / count;
+      addPoint(&smoothed_path, sum_x / count, sum_y / count);
     }
-    smoothed_count++;
   }
 
   // Copy back the smoothed points
-  for (int i = 0; i < smoothed_count; i++)
+  path->count = 0;
+  for (int i = 0; i < smoothed_path.count; i++)
   {
-    path->points[i] = smoothed_points[i];
+    addPoint(path, smoothed_path.items[i].x, smoothed_path.items[i].y);
   }
-  path->count = smoothed_count;
+  free(smoothed_path.items);
 }
 
 /**
@@ -397,8 +401,8 @@ void drawPath(Display *d, Window w, GC gc, Path *p)
   for (int i = 1; i < p->count; i++)
   {
     XDrawLine(d, w, gc,
-              p->points[i - 1].x, p->points[i - 1].y,
-              p->points[i].x, p->points[i].y);
+              p->items[i - 1].x, p->items[i - 1].y,
+              p->items[i].x, p->items[i].y);
   }
 }
 
@@ -755,26 +759,6 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
   }
 }
 
-Pixmap captureInitialScreenshot(Display *d, Window root, int screen, unsigned int width, unsigned int height)
-{
-  XImage *image = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
-  if (image == NULL)
-  {
-    fprintf(stderr, "Failed to capture initial screenshot\n");
-    return None;
-  }
-
-  Pixmap pixmap = XCreatePixmap(d, root, width, height, XDefaultDepth(d, screen));
-  GC gc = XCreateGC(d, pixmap, 0, NULL);
-
-  XPutImage(d, pixmap, gc, image, 0, 0, 0, 0, width, height);
-
-  XFreeGC(d, gc);
-  XDestroyImage(image);
-
-  return pixmap;
-}
-
 ////////////////////////
 // MAIN
 ////////////////////////
@@ -811,7 +795,7 @@ int main()
   char prv_shape = shape;
   long color = color_list[0];
   int drawing = 0;
-  Path path;
+  Path path = {0};
   path.count = 0;
   pointPreDraw.x = -1;
   pointPreDraw.y = -1;
@@ -830,28 +814,36 @@ int main()
   Window root = DefaultRootWindow(d);
 
   // Capture initial screenshot before creating window
-  XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
-  if (!bgImage)
-  {
-    fprintf(stderr, "Failed to capture background screenshot\n");
-    XCloseDisplay(d);
-    exit(1);
-  }
+  // Actually useless and very restrictive because X11 already has transparency support.
+//   XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
+//   if (!bgImage)
+//   {
+//     fprintf(stderr, "Failed to capture background screenshot\n");
+//     XCloseDisplay(d);
+//     exit(1);
+//   }
 
+  XVisualInfo vinfo;
+  XMatchVisualInfo(d, screen, 32, TrueColor, &vinfo);
+  
   // Create window WITHOUT override_redirect to get proper keyboard focus
   XSetWindowAttributes attrs;
+  attrs.colormap = XCreateColormap(d, root, vinfo.visual, AllocNone);
   attrs.event_mask = ExposureMask | ButtonPressMask | KeyPressMask |
                      ButtonReleaseMask | ButtonMotionMask | KeyReleaseMask |
                      FocusChangeMask | StructureNotifyMask;
+  attrs.border_pixel = 0;
+  attrs.background_pixel = 0;
 
   w = XCreateWindow(d, root, -10, -35, width + 10, height + 35, 0,
-                    CopyFromParent, InputOutput, CopyFromParent,
-                    CWEventMask, &attrs);
+                    vinfo.depth, InputOutput, vinfo.visual,
+                    CWEventMask | CWColormap | CWBorderPixel | CWBackPixel, &attrs);
 
   // Set fullscreen property
-  Atom atoms[2] = {XInternAtom(d, "_NET_WM_STATE_FULLSCREEN", False), None};
-  XChangeProperty(d, w, XInternAtom(d, "_NET_WM_STATE", False), XA_ATOM, 32,
-                  PropModeReplace, (unsigned char *)atoms, 1);
+  // No more needed because of transparentness of window.
+//   Atom atoms[2] = {XInternAtom(d, "_NET_WM_STATE_FULLSCREEN", False), None};
+//   XChangeProperty(d, w, XInternAtom(d, "_NET_WM_STATE", False), XA_ATOM, 32,
+//                   PropModeReplace, (unsigned char *)atoms, 1);
 
   // Create GC
   gc = XCreateGC(d, w, 0, NULL);
@@ -872,13 +864,13 @@ int main()
   usleep(100000);
 
   // Copy background to window after it's mapped
-  XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
-  XDestroyImage(bgImage);
+//   XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
+//   XDestroyImage(bgImage);
 
   // Set input focus to our window
   XSetInputFocus(d, w, RevertToParent, CurrentTime);
   XRaiseWindow(d, w);
-
+  
   // Prepare undo/redo levels
   int maxUndo = 0;
   int undoLevel = 0;
@@ -889,12 +881,16 @@ int main()
   initUndo(undoStack, d, w, screen, width, height, UNDO_MAX);
   initUndo(redoStack, d, w, screen, width, height, UNDO_MAX);
 
+  /* Currently broken
   // Initialize undo stack with background
   for (int i = 0; i < UNDO_MAX; i++)
   {
     XCopyArea(d, w, undoStack[i], gc, 0, 0, width, height, 0, 0);
   }
+  */
 
+
+  
   setShapeCursor(d, w, &cursor, shape);
 
   // Text input variables
@@ -906,6 +902,13 @@ int main()
   Pixmap textPixMap = XCreatePixmap(d, w, width, height, XDefaultDepth(d, screen));
 
   drawColorPalette(d, w, gc, width, height, color_list, color_index);
+
+  enum
+  {
+    KeyMod_LShift = 1<<0,
+    KeyMod_LAlt = 1<<1,
+  };
+  int key_mods = 0;
 
   // Main event loop
   while (1)
@@ -929,7 +932,7 @@ int main()
         drawing = 1;
         path.count = 0;
         addPoint(&path, e.xbutton.x, e.xbutton.y);
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
       }
       break;
 
@@ -945,7 +948,7 @@ int main()
         if (drawing)
         {
           drawing = 0;
-          XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+          // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           smoothPath(&path, SMOOTHING_LEVEL);
           drawPath(d, w, gc, &path);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
@@ -960,7 +963,7 @@ int main()
         {
           drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
         }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawCircle(d, w, gc, rect[0].x, rect[0].y, abs(rect[1].x - rect[0].x));
@@ -983,7 +986,7 @@ int main()
         }
         else
         {
-          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+          // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
@@ -999,7 +1002,7 @@ int main()
         {
           drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
@@ -1010,7 +1013,7 @@ int main()
         {
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1021,7 +1024,7 @@ int main()
         {
           drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1032,7 +1035,7 @@ int main()
         {
           drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBracket(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
@@ -1079,8 +1082,8 @@ int main()
           if (path.count > 1)
           {
             XDrawLine(d, w, gcPreDraw,
-                      path.points[path.count - 2].x, path.points[path.count - 2].y,
-                      path.points[path.count - 1].x, path.points[path.count - 1].y);
+                      path.items[path.count - 2].x, path.items[path.count - 2].y,
+                      path.items[path.count - 1].x, path.items[path.count - 1].y);
           }
         }
         break;
@@ -1124,7 +1127,7 @@ int main()
         {
           text[--l_text] = 0x00;
           XClearWindow(d, w);
-          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          // XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           XDrawString(d, w, gc, x_text, y_text, text, strlen(text));
           XFlush(d);
         }
@@ -1142,7 +1145,7 @@ int main()
           l_text = 0;
           *text = 0x00;
           XClearWindow(d, w);
-          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          // XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_pencil);
         }
       }
@@ -1151,6 +1154,14 @@ int main()
         if (e.xkey.keycode == 0x09)
         {
           bye(d, w);
+        }
+        else if (e.xkey.keycode == 50)
+        {
+          key_mods |= KeyMod_LShift;
+        }
+        else if (e.xkey.keycode == 64)
+        {
+          key_mods |= KeyMod_LAlt;
         }
         else if (e.xkey.keycode == 54)
         {
@@ -1164,7 +1175,7 @@ int main()
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 33)
+        else if (e.xkey.keycode == 33 && !(key_mods & (KeyMod_LShift|KeyMod_LAlt)))
         {
           shape = 'p';
           p = 0;
@@ -1256,12 +1267,12 @@ int main()
         {
           if (maxRedo > 0)
           {
-            XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+            // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
             undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
             maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
             redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
             maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
-            XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
+            // XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
         else if (e.xkey.keycode == 30 ||
@@ -1270,14 +1281,45 @@ int main()
         {
           if (maxUndo > 0)
           {
-            XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
+            // XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
             redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
             maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
             undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
             maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;
-            XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+            // XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           }
         }
+      }
+      break;
+
+    case KeyRelease:
+      if (t_text)
+      {
+      }
+      else
+      {
+        if (e.xkey.keycode == 0x09)
+        {
+          bye(d, w);
+        }
+        else if (e.xkey.keycode == 50)
+        {
+          key_mods &= ~KeyMod_LShift;
+        }
+        else if (e.xkey.keycode == 64)
+        {
+          key_mods &= ~KeyMod_LAlt;
+        }
+        /*
+        else if (e.xkey.keycode == 33 && (key_mods & (KeyMod_LShift|KeyMod_LAlt))==(KeyMod_LShift|KeyMod_LAlt))
+        {
+          printf("KEKW\n");
+          attrs.event_mask = ExposureMask | FocusChangeMask | StructureNotifyMask;
+          XChangeWindowAttributes(d, w, CWEventMask, &attrs);
+          XLowerWindow(d, w);
+          XSetInputFocus(d, PointerRoot, RevertToPointerRoot, CurrentTime);
+        }
+        */
       }
       break;
     }
