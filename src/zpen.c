@@ -534,8 +534,8 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
   int circle_size = 8; // Small circle size
   int gap = 4;         // Small gap between circles
   int palette_width = MAX_COLORS * circle_size + (MAX_COLORS - 1) * gap;
-  int start_x = screen_width - palette_width - 10; // 10px margin from right edge
-  int y = screen_height - 30;                      // Position from bottom edge (accounting for -35 window offset)
+  int start_x = screen_width - palette_width - 4; // 4px margin from right edge
+  int y = screen_height - 28;                     // Position from bottom edge (accounting for -35 window offset)
 
   // Save current GC color
   XGCValues values;
