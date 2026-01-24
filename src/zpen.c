@@ -66,11 +66,12 @@ typedef enum
   MOD_PEN     = 1,
   MOD_LINE    = 2,
   MOD_ARROW   = 3,
-  MOD_RECT    = 4,
-  MOD_CIRCLE  = 5,
-  MOD_CBRACE  = 6,
-  MOD_SBRACE  = 7,
-  MOD_TEXT    = 8,
+  MOD_RRECT   = 4,
+  MOD_RECT    = 5,
+  MOD_CIRCLE  = 6,
+  MOD_CBRACE  = 7,
+  MOD_SBRACE  = 8,
+  MOD_TEXT    = 9,
 } ModType;
 
 typedef struct Modification Modification;
@@ -78,6 +79,7 @@ typedef struct Modification Modification;
 struct Modification  // Fields marked with "f" must be freed at freeing a modification
 {
   ModType type;
+  int inactive;
   union
   {
     struct
@@ -87,7 +89,7 @@ struct Modification  // Fields marked with "f" must be freed at freeing a modifi
     struct
     {
       int ax, ay, bx, by;
-    } d_line; // MOD_ARROW,MOD_RECT,MOD_CBRACE,MOD_SBRAKE are using this too.
+    } d_line; // MOD_ARROW,MOD_RRECT,MOD_RECT,MOD_CBRACE,MOD_SBRAKE are using this too.
     struct {
       int x, y, r;
     } d_circle;
@@ -106,12 +108,32 @@ Modification *newModification()
   return calloc(sizeof(Modification), 1);
 }
 
+void freeModification(Modification *mod)
+{
+  if (mod->type == MOD_PEN) free(mod->d_pen.path.items);
+  if (mod->type == MOD_TEXT) free(mod->d_text.sb.items);
+  free(mod);
+}
+
+void removeNextModifications(Modification *mod)
+{
+  if (mod->prev) mod->prev->next = NULL;
+  while (mod)
+  {
+    Modification *nxt = mod->next;
+    freeModification(mod);
+    mod = nxt;
+  }
+}
+
 void addPenModification(Path path)
 {
   assert(modif_last != NULL);
   Modification *mod = newModification();
   mod->type = MOD_PEN;
   mod->d_pen.path = path;
+  
+  if (modif_last->next) removeNextModifications(modif_last->next);
   modif_last->next = mod;
   mod->prev = modif_last;
   modif_last = mod;
@@ -126,6 +148,8 @@ void addLineModification(ModType type, int ax, int ay, int bx, int by)
   mod->d_line.ay = ay;
   mod->d_line.bx = bx;
   mod->d_line.by = by;
+  
+  if (modif_last->next) removeNextModifications(modif_last->next);
   modif_last->next = mod;
   mod->prev = modif_last;
   modif_last = mod;
@@ -139,36 +163,14 @@ void addCircleModification(int x, int y, int r)
   mod->d_circle.x = x;
   mod->d_circle.y = y;
   mod->d_circle.r = r;
+  
+  if (modif_last->next) removeNextModifications(modif_last->next);
   modif_last->next = mod;
   mod->prev = modif_last;
   modif_last = mod;
 }
 
 // TBD: TEXT
-
-void freeModification(Modification *mod)
-{
-  if (mod->d_pen.path.items) free(mod->d_pen.path.items);
-  if (mod->d_text.sb.items) free(mod->d_text.sb.items);
-  free(mod);
-}
-
-void removeModification(Modification *mod)
-{
-  if (mod->prev) mod->prev->next = mod->next;
-  if (mod->next) mod->next->prev = mod->prev;
-  freeModification(mod);
-}
-
-void removeNextModifications(Modification *mod)
-{
-  if (mod->prev) mod->prev->next = NULL;
-  while (mod)
-  {
-    freeModification(mod);
-    mod = mod->next;
-  }
-}
 
 int getIntegerDistance(int ax, int ay, int bx, int by)
 {
@@ -875,7 +877,7 @@ void drawModifications(Display *d, Window w, GC gc)
 {
   assert(modif_first != NULL);
   Modification *mod = modif_first;
-  while (mod)
+  while (mod && !mod->inactive)
   {
     switch (mod->type)
     {
@@ -899,6 +901,12 @@ void drawModifications(Display *d, Window w, GC gc)
       break;
     case MOD_RECT:
       drawRectangle(d, w, gc,
+                mod->d_line.ax,
+                mod->d_line.ay,
+                mod->d_line.bx,
+                mod->d_line.by);
+    case MOD_RRECT:
+      drawRoundedRectangle(d, w, gc,
                 mod->d_line.ax,
                 mod->d_line.ay,
                 mod->d_line.bx,
@@ -1009,6 +1017,13 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     setCursor(d, w, cursor, XC_left_side);
     break;
   }
+}
+
+void redrawAll(Display *d, Window w, GC gc, int sw, int sh, unsigned long *cl, int sci)
+{
+  XClearWindow(d, w);
+  drawModifications(d, w, gc);
+  drawColorPalette(d, w, gc, sw, sh, cl, sci);
 }
 
 ////////////////////////
@@ -1164,16 +1179,6 @@ int main()
   if (missing_count > 0)
     XFreeStringList(missing_list);
 
-  // Prepare undo/redo levels
-  int maxUndo = 0;
-  int undoLevel = 0;
-  int maxRedo = 0;
-  int redoLevel = 0;
-  Pixmap undoStack[UNDO_MAX];
-  Pixmap redoStack[UNDO_MAX];
-  initUndo(undoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
-  initUndo(redoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
-
   // Needed to get window's dimensions that might be different from the screen dimesions because fullscreening is disable.
   getDimensions(d, w, &width, &height);
   
@@ -1184,7 +1189,7 @@ int main()
   setShapeCursor(d, w, &cursor, shape);
 
   // Text input variables
-  char text[256] = {0};
+  StringBuilder text = {0};
   int l_text = 0;
   int t_text = 0;
   int x_text = 0;
@@ -1256,7 +1261,6 @@ int main()
         break;
 
       case 'c':
-        GC _gc = gc;
         int
           _ax = rect[0].x,
           _ay = rect[0].y,
@@ -1264,21 +1268,15 @@ int main()
           _by = rect[1].y;
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
-          _gc = gcPreDraw;
           _bx = pointPreDraw.x;
           _by = pointPreDraw.y;
         }
-        drawCircle(d, w, _gc, _ax, _ay, getIntegerDistance(_ax, _ay, _bx, _by));
+        int r = getIntegerDistance(_ax, _ay, _bx, _by);
+        drawCircle(d, w, gc, _ax, _ay, r);
+        addCircleModification(_ax, _ay, r);
         break;
 
       case 'r':
-        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
-        {
-          if (roundedRect && !f_screenshot)
-            drawRoundedRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
-          else
-            drawRectangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
-        }
         if (f_screenshot)
         {
           saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, f_screenshot == 2 ? 1 : 0);
@@ -1291,62 +1289,54 @@ int main()
         }
         else
         {
-          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-          maxRedo = 0;
-          redoLevel = 0;
-          if (roundedRect)
+          // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+          // undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+          // maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          // maxRedo = 0;
+          // redoLevel = 0;
+          if (roundedRect) {
             drawRoundedRectangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
-          else
+            addLineModification(MOD_RRECT, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          }
+          else {
             drawRectangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+            addLineModification(MOD_RECT, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+          }
         }
         f_screenshot = 0;
         setShapeCursor(d, w, &cursor, shape);
         break;
 
       case 'a':
-        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
-        {
-          drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
-        }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+        // maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
+        addLineModification(MOD_ARROW, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         break;
 
       case 'l':
-        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
-        {
-          drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
-        }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+        // maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+        addLineModification(MOD_LINE, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         break;
 
       case 'k':
-        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
-        {
-          drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
-        }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+        // maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+        addLineModification(MOD_SBRACE, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         break;
 
       case 'b':
-        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
-        {
-          drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
-        }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        // XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        // undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+        // maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
         drawBracket(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
+        addLineModification(MOD_CBRACE, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         break;
       }
       p = 0;
@@ -1399,7 +1389,7 @@ int main()
         }
         break;
       case 'c':
-        drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, abs(pointPreDraw.x - rect[0].x));
+        drawCircle(d, w, gcPreDraw, rect[0].x, rect[0].y, getIntegerDistance(pointPreDraw.x, pointPreDraw.y, rect[0].x, rect[0].y));
         break;
       case 'r':
         if (roundedRect && !f_screenshot)
@@ -1452,14 +1442,14 @@ int main()
             // First redraw without cursor to commit clean text
             XClearWindow(d, w);
             XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-            if (fontset && strlen(text) > 0)
-              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+            if (fontset && text.count > 0)
+              XmbDrawString(d, w, fontset, gc, x_text, y_text, text.items, text.count);
             XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
-            l_text = 0;
-            *text = 0x00;
-            y_text += 24; // Move to next line (approx line height for 18pt font)
+            da_append(&text, '\n');
+            ++l_text;
+            // y_text += 24; // Move to next line (approx line height for 18pt font)
             // Draw cursor on new line
-            drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+            drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text.items, 18);
             XFlush(d);
           }
           else
@@ -1467,25 +1457,25 @@ int main()
             // Regular Enter: finish text input, redraw without cursor
             XClearWindow(d, w);
             XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-            if (fontset && strlen(text) > 0)
-              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+            if (fontset && text.count > 0)
+              XmbDrawString(d, w, fontset, gc, x_text, y_text, text.items, text.count);
             l_text = 0;
             t_text = 0;
-            *text = 0x00;
+            // *text = 0x00;
             setCursor(d, w, &cursor, XC_pencil);
           }
         }
         else if (key == XK_BackSpace && l_text > 0)
         {
           // Remove last UTF-8 character (may be multiple bytes)
-          while (l_text > 0 && (text[l_text - 1] & 0xC0) == 0x80)
+          while (l_text > 0 && (text.items[l_text - 1] & 0xC0) == 0x80)
             l_text--; // Skip continuation bytes
           if (l_text > 0)
             l_text--; // Remove the start byte
-          text[l_text] = 0x00;
+          text.items[l_text] = 0x00;
           XClearWindow(d, w);
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text.items, 18);
           XFlush(d);
         }
         else if (n > 0 && (unsigned char)ltext[0] >= 32 && l_text + n < sizeof(text) - 1)
@@ -1494,16 +1484,17 @@ int main()
           // First clear previous cursor
           XClearWindow(d, w);
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          strcat(text, ltext);
+          for (char *a = ltext; *a; ++a)
+            da_append(&text, *a);
           l_text += n;
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text.items, 18);
           XFlush(d);
         }
         if (e.xkey.keycode == 0x09)
         {
           t_text = 0;
           l_text = 0;
-          *text = 0x00;
+          // *text = 0x00;
           XClearWindow(d, w);
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_pencil);
@@ -1584,7 +1575,7 @@ int main()
           setCursor(d, w, &cursor, XC_icon);
           XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
         }
-        else if (e.xkey.keycode == 28)
+        else if (e.xkey.keycode == 28 && 0) // Currently broken
         {
           // XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_xterm);
@@ -1592,7 +1583,7 @@ int main()
           y_text = e.xbutton.y;
           t_text = 1;
           // Draw initial cursor
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text.items, 18);
           XFlush(d);
         }
         else if (e.xkey.keycode == 65)
@@ -1635,28 +1626,22 @@ int main()
         else if ((e.xkey.state & ControlMask) && (e.xkey.state & ShiftMask) &&
                  (e.xkey.keycode == 52 || e.xkey.keycode == 29))
         {
-          if (maxRedo > 0)
+          if (modif_last->next != NULL)
           {
-            XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-            undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : undoLevel + 1;
-            maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : maxUndo + 1;
-            redoLevel = (redoLevel == 0) ? UNDO_MAX - 1 : redoLevel - 1;
-            maxRedo = (maxRedo < 0) ? 0 : maxRedo - 1;
-            XCopyArea(d, redoStack[redoLevel], w, gc, 0, 0, width, height, 0, 0);
+            modif_last = modif_last->next;
+            modif_last->inactive = 0;
+            redrawAll(d, w, gc, width, height, color_list, color_index);
           }
         }
         else if (e.xkey.keycode == 30 ||
                  ((e.xkey.state & ControlMask) && !(e.xkey.state & ShiftMask) &&
                   (e.xkey.keycode == 52 || e.xkey.keycode == 29)))
         {
-          if (maxUndo > 0)
+          if (modif_last->prev != NULL)
           {
-            XCopyArea(d, w, redoStack[redoLevel], gc, 0, 0, width, height, 0, 0);
-            redoLevel = (redoLevel >= UNDO_MAX - 1) ? 0 : redoLevel + 1;
-            maxRedo = (maxRedo >= UNDO_MAX) ? UNDO_MAX : maxRedo + 1;
-            undoLevel = (undoLevel == 0) ? UNDO_MAX - 1 : undoLevel - 1;
-            maxUndo = (maxUndo < 0) ? 0 : maxUndo - 1;
-            XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+            modif_last->inactive = 1;
+            modif_last = modif_last->prev;
+            redrawAll(d, w, gc, width, height, color_list, color_index);
           }
         }
       }
