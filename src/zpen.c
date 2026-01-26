@@ -321,13 +321,17 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
   // Capture from root window instead of application window for Cinnamon compatibility
   Window root = DefaultRootWindow(d);
 
+  // Translate window-relative coordinates to root window coordinates
+  Window child;
+  int root_x0, root_y0, root_x1, root_y1;
+  XTranslateCoordinates(d, w, root, x0, y0, &root_x0, &root_y0, &child);
+  XTranslateCoordinates(d, w, root, x1, y1, &root_x1, &root_y1, &child);
+
   // Ensure coordinates are properly ordered
-  int x = (x0 < x1) ? x0 : x1;
-  x += 1;
-  int y = (y0 < y1) ? y0 : y1;
-  y += 1;
-  int width = abs(x1 - x0) - 1;
-  int height = abs(y1 - y0) - 1;
+  int x = (root_x0 < root_x1) ? root_x0 : root_x1;
+  int y = (root_y0 < root_y1) ? root_y0 : root_y1;
+  int width = abs(root_x1 - root_x0) + 1;
+  int height = abs(root_y1 - root_y0) + 1;
 
   // Make sure we have valid dimensions
   if (width <= 0 || height <= 0)
@@ -1080,6 +1084,9 @@ int main()
         }
         if (f_screenshot)
         {
+          // Sync display and wait for compositor to update before capture
+          XSync(d, False);
+          usleep(50000); // 50ms delay for compositor
           saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, f_screenshot == 2 ? 1 : 0);
           XSetForeground(d, gcPreDraw, color);
           shape = prv_shape;
