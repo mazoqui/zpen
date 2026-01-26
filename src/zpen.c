@@ -855,6 +855,7 @@ int main()
 
   char shape = 'a';
   char prv_shape = shape;
+  int skipNextEsc = 0;
   int roundedRect = 1;
   unsigned long color = color_list[0];
   int drawing = 0;
@@ -1244,34 +1245,19 @@ int main()
 
         if (key == XK_Return || e.xkey.keycode == 104)
         {
-          if (e.xkey.state & ControlMask)
-          {
-            // Ctrl+Enter: commit current line and start new line below
-            // First redraw without cursor to commit clean text
-            XClearWindow(d, w);
-            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-            if (fontset && strlen(text) > 0)
-              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
-            XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
-            l_text = 0;
-            *text = 0x00;
-            y_text += 24; // Move to next line (approx line height for 18pt font)
-            // Draw cursor on new line
-            drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
-            XFlush(d);
-          }
-          else
-          {
-            // Regular Enter: finish text input, redraw without cursor
-            XClearWindow(d, w);
-            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-            if (fontset && strlen(text) > 0)
-              XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
-            l_text = 0;
-            t_text = 0;
-            *text = 0x00;
-            setCursor(d, w, &cursor, XC_pencil);
-          }
+          // Enter: commit current line and start new line below
+          // First redraw without cursor to commit clean text
+          XClearWindow(d, w);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          if (fontset && strlen(text) > 0)
+            XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
+          XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
+          l_text = 0;
+          *text = 0x00;
+          y_text += 24; // Move to next line (approx line height for 18pt font)
+          // Draw cursor on new line
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          XFlush(d);
         }
         else if (key == XK_BackSpace && l_text > 0)
         {
@@ -1299,19 +1285,27 @@ int main()
         }
         if (e.xkey.keycode == 0x09)
         {
+          // ESC: commit text and return to previous drawing tool
+          XClearWindow(d, w);
+          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+          if (fontset && strlen(text) > 0)
+            XmbDrawString(d, w, fontset, gc, x_text, y_text, text, strlen(text));
           t_text = 0;
           l_text = 0;
           *text = 0x00;
-          XClearWindow(d, w);
-          XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          setCursor(d, w, &cursor, XC_pencil);
+          shape = prv_shape;
+          setShapeCursor(d, w, &cursor, shape);
+          skipNextEsc = 1;
         }
       }
       else
       {
         if (e.xkey.keycode == 0x09)
         {
-          bye(d, w);
+          if (skipNextEsc)
+            skipNextEsc = 0;
+          else
+            bye(d, w);
         }
         else if (e.xkey.keycode == 50)
         {
@@ -1384,6 +1378,7 @@ int main()
         }
         else if (e.xkey.keycode == 28)
         {
+          prv_shape = shape;
           XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
           setCursor(d, w, &cursor, XC_xterm);
           x_text = e.xbutton.x;
@@ -1468,7 +1463,10 @@ int main()
       {
         if (e.xkey.keycode == 0x09)
         {
-          bye(d, w);
+          if (skipNextEsc)
+            skipNextEsc = 0;
+          else
+            bye(d, w);
         }
         else if (e.xkey.keycode == 50)
         {
