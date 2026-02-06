@@ -881,20 +881,19 @@ int main()
   unsigned int width = DisplayWidth(d, screen);
   Window root = DefaultRootWindow(d);
 
-  // Capture initial screenshot before creating window
-  // Actually useless and very restrictive because X11 already has transparency support.
-  //   XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
-  //   if (!bgImage)
-  //   {
-  //     fprintf(stderr, "Failed to capture background screenshot\n");
-  //     XCloseDisplay(d);
-  //     exit(1);
-  //   }
+  // Capture initial screenshot before creating window to freeze the desktop
+  XImage *bgImage = XGetImage(d, root, 0, 0, width, height, AllPlanes, ZPixmap);
+  if (!bgImage)
+  {
+    fprintf(stderr, "Failed to capture background screenshot\n");
+    XCloseDisplay(d);
+    exit(1);
+  }
 
   XVisualInfo vinfo;
   XMatchVisualInfo(d, screen, 32, TrueColor, &vinfo);
 
-  // Create window WITHOUT override_redirect to get proper keyboard focus
+  // Create window with override_redirect to bypass WM and cover entire screen (including panels)
   XSetWindowAttributes attrs;
   attrs.colormap = XCreateColormap(d, root, vinfo.visual, AllocNone);
   attrs.event_mask = ExposureMask | ButtonPressMask | KeyPressMask |
@@ -902,10 +901,11 @@ int main()
                      FocusChangeMask | StructureNotifyMask;
   attrs.border_pixel = 0;
   attrs.background_pixel = 0;
+  attrs.override_redirect = True;
 
-  w = XCreateWindow(d, root, -10, -35, width + 10, height + 35, 0,
+  w = XCreateWindow(d, root, 0, 0, width, height, 0,
                     vinfo.depth, InputOutput, vinfo.visual,
-                    CWEventMask | CWColormap | CWBorderPixel | CWBackPixel, &attrs);
+                    CWEventMask | CWColormap | CWBorderPixel | CWBackPixel | CWOverrideRedirect, &attrs);
 
   // Remove window decorations (title bar) using Motif hints
   struct
@@ -938,9 +938,29 @@ int main()
   // Wait for window to be mapped and get focus
   usleep(100000);
 
-  // Copy background to window after it's mapped
-  //   XPutImage(d, w, gc, bgImage, 0, 0, 0, 0, width, height);
-  //   XDestroyImage(bgImage);
+  // Fill entire window with opaque black so no transparent gaps remain
+  XSetForeground(d, gc, 0xFF000000);
+  XFillRectangle(d, w, gc, 0, 0, width, height);
+  XSetForeground(d, gc, color);
+
+  // Copy frozen background to window - window is at (0,0) matching the captured screenshot
+  {
+    // Convert 24-bit root window capture to 32-bit (add alpha=0xFF) to match our window depth
+    XImage *bg32 = XCreateImage(d, vinfo.visual, 32, ZPixmap, 0, NULL,
+                                width, height, 32, 0);
+    bg32->data = malloc(bg32->bytes_per_line * height);
+    for (int y = 0; y < height; y++)
+    {
+      for (int x = 0; x < width; x++)
+      {
+        unsigned long pixel = XGetPixel(bgImage, x, y);
+        XPutPixel(bg32, x, y, pixel | 0xFF000000);
+      }
+    }
+    XPutImage(d, w, gc, bg32, 0, 0, 0, 0, width, height);
+    XDestroyImage(bg32);
+  }
+  XDestroyImage(bgImage);
 
   // Set input focus to our window
   XSetInputFocus(d, w, RevertToParent, CurrentTime);
