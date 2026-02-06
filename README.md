@@ -23,6 +23,15 @@
     - Full undo/redo functionality with up to 20 levels of history.
     - Standard keyboard shortcuts: `Ctrl+Z` for undo, `Shift+Ctrl+Z` for redo.
     - Backward compatibility: `u` key still works for undo.
+- **Pen Thickness Control:**
+
+    - Increase pen thickness with `+` key (regular or numpad).
+    - Decrease pen thickness with `-` key (regular or numpad).
+    - Reset to default thickness with `0` key (regular or numpad).
+    - Thickness range: 1 to 20 (default: 3).
+- **Frozen Desktop:**
+
+    - Captures a screenshot of the desktop at launch and uses it as a static background, preventing background UI changes from interfering with annotations.
 - **Color Selection:**
     
     - Choose from a palette of 9 predefined colors: red, green, blue, yellow, orange, white, magenta, pink, and gray.
@@ -61,6 +70,12 @@
 ### Screenshot Tools
 - `s`: Capture screenshot, copy to clipboard, and exit
 - `f`: Capture screenshot and save as PNG file
+
+### Pen Thickness
+- `+`: Increase pen thickness
+- `-`: Decrease pen thickness
+- `0`: Reset to default thickness
+- Also works with numpad `+`, `-`, and `0`
 
 ### Other
 - `n`: Add numbered step counter
@@ -269,6 +284,9 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Colors** | `Space` | Next color (9 total) |
 | | `←` `→` | Navigate colors |
 | | | *Colors: red, green, blue, yellow, orange, white, magenta, pink, gray* |
+| **Thickness** | `+` | Increase pen thickness |
+| | `-` | Decrease pen thickness |
+| | `0` | Reset to default thickness |
 | **Actions** | `Ctrl+Z` | Undo |
 | | `Shift+Ctrl+Z` | Redo |
 | | `u` | Undo (legacy) |

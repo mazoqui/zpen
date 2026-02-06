@@ -862,6 +862,7 @@ int main()
   int skipNextEsc = 0;
   int roundedRect = 1;
   unsigned long color = color_list[0];
+  int thickness = THICKNESS;
   int drawing = 0;
   Path path = {0};
   path.count = 0;
@@ -923,13 +924,13 @@ int main()
   // Create GC
   gc = XCreateGC(d, w, 0, NULL);
   XSetForeground(d, gc, color);
-  XSetLineAttributes(d, gc, THICKNESS, LineSolid, CapRound, JoinMiter);
+  XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
 
   XGCValues gcValuesPreDraw;
   gcValuesPreDraw.function = GXxor;
   gcValuesPreDraw.foreground = color;
   gcPreDraw = XCreateGC(d, w, GCForeground + GCFunction, &gcValuesPreDraw);
-  XSetLineAttributes(d, gcPreDraw, THICKNESS - 2, LineDoubleDash, CapRound, JoinMiter);
+  XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
 
   // Map window
   XMapWindow(d, w);
@@ -1435,6 +1436,33 @@ int main()
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, color_list[color_index]);
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
+        }
+        else if (e.xkey.keycode == 21 || e.xkey.keycode == 86)
+        {
+          // + key or numpad +: increase pen thickness
+          if (thickness < 20)
+          {
+            thickness++;
+            XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+            XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
+          }
+        }
+        else if (e.xkey.keycode == 20 || e.xkey.keycode == 82)
+        {
+          // - key or numpad -: decrease pen thickness
+          if (thickness > 1)
+          {
+            thickness--;
+            XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+            XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
+          }
+        }
+        else if (e.xkey.keycode == 19 || e.xkey.keycode == 90)
+        {
+          // 0 key or numpad 0: reset pen thickness to default
+          thickness = THICKNESS;
+          XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+          XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
         }
         else if (e.xkey.keycode == 56)
         {
