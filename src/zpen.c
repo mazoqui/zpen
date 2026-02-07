@@ -140,54 +140,6 @@ int convert_ppm_to_png(const char *ppm_path, const char *png_path)
   return 1;
 }
 
-int convert_ppm_to_jpeg(const char *ppm_path, const char *jpeg_path, int quality)
-{
-  FILE *file = fopen(ppm_path, "rb");
-  if (!file)
-  {
-    printf("Error opening PPM file: %s\n", ppm_path);
-    return 0;
-  }
-  // Read PPM Header
-  char format[3];
-  int width, height, maxval;
-  if (fscanf(file, "%2s\n%d %d\n%d\n", format, &width, &height, &maxval) != 4)
-  {
-    printf("Error reading PPM file header.\n");
-  }
-  if (format[0] != 'P' || format[1] != '6')
-  {
-    printf("Invalid PPM format. Only P6 is supported.\n");
-  }
-  if (maxval != 255)
-  {
-    printf("Unsupported max value: %d. Only images with maxval=255 are supported..\n", maxval);
-  }
-  // Allocate memory for image data
-  int channels = 3; // RGB
-  size_t image_size = width * height * channels;
-  unsigned char *data = (unsigned char *)malloc(image_size);
-  if (!data)
-  {
-    printf("Erro ao alocar memória para a imagem.\n");
-  }
-  // Read image data
-  if (fread(data, 1, image_size, file) != image_size)
-  {
-    printf("Erro ao ler dados da imagem.\n");
-    free(data);
-  }
-  fclose(file);
-  // Write the image in JPEG format
-  if (!stbi_write_jpg(jpeg_path, width, height, channels, data, quality))
-  {
-    printf("Error saving JPEG file: %s\n", jpeg_path);
-    free(data);
-    return 0;
-  }
-  free(data);
-  return 1;
-}
 
 /**
  * Get the full path of the ~/.zpen directory
@@ -401,6 +353,16 @@ void smoothPath(Path *path, int smoothing_level)
     addPoint(path, smoothed_path.items[i].x, smoothed_path.items[i].y);
   }
   free(smoothed_path.items);
+}
+
+// Build guide line XOR color: alpha=0 so XOR with 0xFF background alpha
+// produces 0xFF (opaque), and halved RGB for mid-range contrast
+static unsigned long guideColor(unsigned long c)
+{
+  unsigned long r = ((c >> 16) & 0xFF) / 2;
+  unsigned long g = ((c >> 8) & 0xFF) / 2;
+  unsigned long b = (c & 0xFF) / 2;
+  return (r << 16) | (g << 8) | b;
 }
 
 /**
@@ -931,7 +893,7 @@ int main()
 
   XGCValues gcValuesPreDraw;
   gcValuesPreDraw.function = GXxor;
-  gcValuesPreDraw.foreground = color;
+  gcValuesPreDraw.foreground = guideColor(color);
   gcPreDraw = XCreateGC(d, w, GCForeground + GCFunction, &gcValuesPreDraw);
   XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
 
@@ -1140,7 +1102,7 @@ int main()
           XSync(d, False);
           usleep(50000); // 50ms delay for compositor
           saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, f_screenshot == 2 ? 1 : 0);
-          XSetForeground(d, gcPreDraw, color);
+          XSetForeground(d, gcPreDraw, guideColor(color));
           shape = prv_shape;
           if (f_screenshot == 2)
           {
@@ -1440,7 +1402,7 @@ int main()
           p = 0;
           f_screenshot = 1;
           setCursor(d, w, &cursor, XC_icon);
-          XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
+          XSetForeground(d, gcPreDraw, guideColor(0xFFFFFFFF));
         }
         else if (e.xkey.keycode == 39)
         {
@@ -1449,7 +1411,7 @@ int main()
           p = 0;
           f_screenshot = 2;
           setCursor(d, w, &cursor, XC_icon);
-          XSetForeground(d, gcPreDraw, 0xFFFFFFFF);
+          XSetForeground(d, gcPreDraw, guideColor(0xFFFFFFFF));
         }
         else if (e.xkey.keycode == 28)
         {
@@ -1467,21 +1429,21 @@ int main()
         {
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
-          XSetForeground(d, gcPreDraw, color_list[color_index]);
+          XSetForeground(d, gcPreDraw, guideColor(color_list[color_index]));
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
         else if (e.xkey.keycode == 114)
         {
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
-          XSetForeground(d, gcPreDraw, color_list[color_index]);
+          XSetForeground(d, gcPreDraw, guideColor(color_list[color_index]));
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
         else if (e.xkey.keycode == 113)
         {
           color_index = (color_index - 1 + MAX_COLORS) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
-          XSetForeground(d, gcPreDraw, color_list[color_index]);
+          XSetForeground(d, gcPreDraw, guideColor(color_list[color_index]));
           drawColorPalette(d, w, gc, width, height, color_list, color_index);
         }
         else if (e.xkey.keycode == 21 || e.xkey.keycode == 86)
