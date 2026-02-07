@@ -863,6 +863,8 @@ int main()
   int roundedRect = 1;
   unsigned long color = color_list[0];
   int thickness = THICKNESS;
+  int dashed = 0;
+  char dash_pattern[] = {8, 6}; // Dash pattern for dashed lines (8 pixels on, 6 pixels off)
   int drawing = 0;
   Path path = {0};
   path.count = 0;
@@ -1443,7 +1445,7 @@ int main()
           if (thickness < 20)
           {
             thickness++;
-            XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+            XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
             XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
           }
         }
@@ -1453,7 +1455,7 @@ int main()
           if (thickness > 1)
           {
             thickness--;
-            XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+            XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
             XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
           }
         }
@@ -1461,8 +1463,16 @@ int main()
         {
           // 0 key or numpad 0: reset pen thickness to default
           thickness = THICKNESS;
-          XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+          XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
           XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
+        }
+        else if (e.xkey.keycode == 63 || (e.xkey.keycode == 17 && (e.xkey.state & ShiftMask)))
+        {
+          // * key (numpad or Shift+8): toggle dashed line style
+          dashed = !dashed;
+          if (dashed)
+            XSetDashes(d, gc, 0, dash_pattern, 2);
+          XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
         }
         else if (e.xkey.keycode == 56)
         {
