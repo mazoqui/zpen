@@ -23,6 +23,14 @@
     - Full undo/redo functionality with up to 20 levels of history.
     - Standard keyboard shortcuts: `Ctrl+Z` for undo, `Shift+Ctrl+Z` for redo.
     - Backward compatibility: `u` key still works for undo.
+- **Line Style:**
+
+    - Toggle between solid and dashed lines with the `*` key.
+    - Dashed pattern: 8 pixels on, 6 pixels off.
+- **Translucent Fill:**
+
+    - Hold `Shift` while drawing a rectangle or circle to fill the shape with a translucent version (20% opacity) of the active color.
+    - Acts as a highlighter/marker that lets the background show through.
 - **Pen Thickness Control:**
 
     - Increase pen thickness with `+` key (regular or numpad).
@@ -71,6 +79,12 @@
 - `s`: Capture screenshot, copy to clipboard, and exit
 - `f`: Capture screenshot and save as PNG file
 
+### Line Style
+- `*`: Toggle between solid and dashed lines
+
+### Translucent Fill
+- Hold `Shift` while drawing a rectangle or circle to fill with a translucent color
+
 ### Pen Thickness
 - `+`: Increase pen thickness
 - `-`: Decrease pen thickness
@@ -84,8 +98,9 @@
 ## System Requirements
 
 - **Operating System**: Linux with X Window System (X11)
-- **Dependencies**: 
+- **Dependencies**:
   - `libx11-dev` - X11 development libraries
+  - `libxrender-dev` - XRender extension (translucent fills)
   - `xclip` - Clipboard management (usually pre-installed)
   - `gcc` - C compiler
   - `make` (optional, for build automation)
@@ -95,19 +110,19 @@
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt install libx11-dev xclip build-essential
+sudo apt install libx11-dev libxrender-dev xclip build-essential
 ```
 
 **Fedora/CentOS/RHEL:**
 ```bash
-sudo dnf install libX11-devel xclip gcc
+sudo dnf install libX11-devel libXrender-devel xclip gcc
 # or for older versions:
-sudo yum install libX11-devel xclip gcc
+sudo yum install libX11-devel libXrender-devel xclip gcc
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S libx11 xclip gcc
+sudo pacman -S libx11 libxrender xclip gcc
 ```
 
 ## Installation
@@ -123,7 +138,7 @@ sudo pacman -S libx11 xclip gcc
 2. **Compile:**
    ```bash
    cd src
-   gcc zpen.c -o zpen -lX11 -lm
+   gcc zpen.c -o zpen -lX11 -lXrender -lm
    ```
    or
    ```bash
@@ -142,7 +157,7 @@ To install zPen system-wide:
 ```bash
 # Compile
 cd src
-gcc zpen.c -o zpen -lX11 -lm
+gcc zpen.c -o zpen -lX11 -lXrender -lm
 
 # Install to /usr/local/bin
 sudo cp zpen /usr/local/bin/
@@ -284,6 +299,8 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Colors** | `Space` | Next color (9 total) |
 | | `←` `→` | Navigate colors |
 | | | *Colors: red, green, blue, yellow, orange, white, magenta, pink, gray* |
+| **Style** | `*` | Toggle solid/dashed lines |
+| | `Shift`+draw | Fill rectangle/circle with translucent color |
 | **Thickness** | `+` | Increase pen thickness |
 | | `-` | Decrease pen thickness |
 | | `0` | Reset to default thickness |

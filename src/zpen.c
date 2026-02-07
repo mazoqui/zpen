@@ -9,7 +9,7 @@
 // sudo apt install xclip
 //
 // Hot to compile:
-// gcc zpen.c -o zpen -lX11 -lm
+// gcc zpen.c -o zpen -lX11 -lXrender -lm
 //
 
 #include <X11/Xatom.h>
@@ -17,6 +17,7 @@
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
 #include <X11/Xlocale.h>
+#include <X11/extensions/Xrender.h>
 #include <signal.h>
 #include <time.h>
 #include <math.h>
@@ -1094,6 +1095,34 @@ int main()
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
         undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
         maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+        if (e.xbutton.state & ShiftMask)
+        {
+          int r = abs(rect[1].x - rect[0].x);
+          Pixmap mask = XCreatePixmap(d, w, r, r, 8);
+          GC mgc = XCreateGC(d, mask, 0, NULL);
+          XSetForeground(d, mgc, 0);
+          XFillRectangle(d, mask, mgc, 0, 0, r, r);
+          XSetForeground(d, mgc, 255);
+          XFillArc(d, mask, mgc, 0, 0, r, r, 0, 360 * 64);
+          XRenderPictFormat *a8fmt = XRenderFindStandardFormat(d, PictStandardA8);
+          Picture mask_pic = XRenderCreatePicture(d, mask, a8fmt, 0, NULL);
+          XRenderColor rc;
+          rc.alpha = 0x3333;
+          rc.red   = (unsigned short)((((color_list[color_index] >> 16) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+          rc.green = (unsigned short)((((color_list[color_index] >> 8) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+          rc.blue  = (unsigned short)(((color_list[color_index] & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+          Picture src = XRenderCreateSolidFill(d, &rc);
+          XRenderPictFormat *fmt = XRenderFindVisualFormat(d, vinfo.visual);
+          Picture dst = XRenderCreatePicture(d, w, fmt, 0, NULL);
+          XRenderComposite(d, PictOpOver, src, mask_pic, dst,
+                           0, 0, 0, 0,
+                           rect[0].x - (int)(r / 2), rect[0].y - (int)(r / 2), r, r);
+          XRenderFreePicture(d, src);
+          XRenderFreePicture(d, mask_pic);
+          XRenderFreePicture(d, dst);
+          XFreePixmap(d, mask);
+          XFreeGC(d, mgc);
+        }
         drawCircle(d, w, gc, rect[0].x, rect[0].y, abs(rect[1].x - rect[0].x));
         break;
 
@@ -1125,6 +1154,22 @@ int main()
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
           redoLevel = 0;
+          if (e.xbutton.state & ShiftMask)
+          {
+            int fx = (rect[0].x <= rect[1].x) ? rect[0].x : rect[1].x;
+            int fy = (rect[0].y <= rect[1].y) ? rect[0].y : rect[1].y;
+            int fw = abs(rect[1].x - rect[0].x);
+            int fh = abs(rect[1].y - rect[0].y);
+            XRenderPictFormat *fmt = XRenderFindVisualFormat(d, vinfo.visual);
+            Picture pic = XRenderCreatePicture(d, w, fmt, 0, NULL);
+            XRenderColor rc;
+            rc.alpha = 0x3333;
+            rc.red   = (unsigned short)((((color_list[color_index] >> 16) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+            rc.green = (unsigned short)((((color_list[color_index] >> 8) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+            rc.blue  = (unsigned short)(((color_list[color_index] & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+            XRenderFillRectangle(d, PictOpOver, pic, &rc, fx, fy, fw, fh);
+            XRenderFreePicture(d, pic);
+          }
           if (roundedRect)
             drawRoundedRetangle(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
           else
