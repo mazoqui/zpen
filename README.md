@@ -14,6 +14,7 @@
     - **Arrows:** Draw arrows to point out specific areas on the screen.
     - **Curly Braces:** Draw opening `{` and closing `}` braces with automatic direction detection.
     - **Square Brackets:** Draw opening `[` and closing `]` brackets with automatic direction detection.
+    - **Blur:** Freehand blur brush to obscure sensitive content on screen.
     - **Text Input:** Add text annotations at any position on the screen.
 - **Screenshot Capture:**
     
@@ -64,6 +65,7 @@
     - `c`: Circle
     - `{`: Curly Braces `{` `}` (direction auto-detected by drag direction)
     - `[`: Square Brackets `[` `]` (direction auto-detected by drag direction)
+    - `b`: Blur brush (freehand blur to obscure areas)
     - `t`: Text input at cursor position
 
 ### Color Controls
@@ -295,6 +297,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | | `c` | Circle |
 | | `{` | Curly braces `{` `}` |
 | | `[` | Square brackets `[` `]` |
+| | `b` | Blur brush |
 | | `t` | Text input |
 | **Colors** | `Space` | Next color (9 total) |
 | | `←` `→` | Navigate colors |

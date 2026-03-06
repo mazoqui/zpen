@@ -39,6 +39,8 @@
 #define THICKNESS 3
 #define UNDO_MAX 20
 #define ARROW_SIZE 20
+#define BLUR_RADIUS 4
+#define BLUR_BRUSH 24
 // xlsfonts | grep courier
 // #define FONT "-*-*-*-*-*-*-60-*-*-*-*-*-iso8859-*"
 #define FONT "*-helvetica-*-18-*"
@@ -750,6 +752,73 @@ void drawTextWithCursor(Display *d, Window w, GC gc, XFontSet fontset, int x, in
   XDrawLine(d, w, gc, x + text_width + 2, y - cursor_height + 4, x + text_width + 2, y + 4);
 }
 
+/**
+ * Blur a circular area around (cx, cy) on the window using a box blur.
+ * brushSize: diameter of the blur brush
+ * radius: blur kernel radius (higher = stronger blur)
+ */
+void blurArea(Display *d, Window w, GC gc, int cx, int cy,
+              int brushSize, int radius, unsigned int winW, unsigned int winH)
+{
+  int half = brushSize / 2;
+  int x0 = cx - half;
+  int y0 = cy - half;
+  int x1 = x0 + brushSize;
+  int y1 = y0 + brushSize;
+
+  // Clamp to window bounds
+  if (x0 < 0) x0 = 0;
+  if (y0 < 0) y0 = 0;
+  if (x1 > (int)winW) x1 = (int)winW;
+  if (y1 > (int)winH) y1 = (int)winH;
+
+  int bw = x1 - x0;
+  int bh = y1 - y0;
+  if (bw <= 0 || bh <= 0) return;
+
+  XImage *img = XGetImage(d, w, x0, y0, bw, bh, AllPlanes, ZPixmap);
+  if (!img) return;
+
+  unsigned long *buf = malloc(bw * bh * sizeof(unsigned long));
+  if (!buf) { XDestroyImage(img); return; }
+
+  // Box blur
+  for (int iy = 0; iy < bh; iy++)
+  {
+    for (int ix = 0; ix < bw; ix++)
+    {
+      unsigned long ra = 0, ga = 0, ba = 0, aa = 0;
+      int count = 0;
+      for (int dy = -radius; dy <= radius; dy++)
+      {
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+          int sx = ix + dx, sy = iy + dy;
+          if (sx >= 0 && sx < bw && sy >= 0 && sy < bh)
+          {
+            unsigned long pixel = XGetPixel(img, sx, sy);
+            aa += (pixel >> 24) & 0xFF;
+            ra += (pixel >> 16) & 0xFF;
+            ga += (pixel >> 8) & 0xFF;
+            ba += pixel & 0xFF;
+            count++;
+          }
+        }
+      }
+      buf[iy * bw + ix] = ((aa / count) << 24) | ((ra / count) << 16) |
+                           ((ga / count) << 8) | (ba / count);
+    }
+  }
+
+  for (int iy = 0; iy < bh; iy++)
+    for (int ix = 0; ix < bw; ix++)
+      XPutPixel(img, ix, iy, buf[iy * bw + ix]);
+
+  XPutImage(d, w, gc, img, 0, 0, x0, y0, bw, bh);
+  XDestroyImage(img);
+  free(buf);
+}
+
 void setCursor(Display *d, Window w, Cursor *cursor, int cursorId)
 {
   *cursor = XCreateFontCursor(d, cursorId);
@@ -781,6 +850,9 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
     break;
   case '[':
     setCursor(d, w, cursor, XC_left_side);
+    break;
+  case 'b':
+    setCursor(d, w, cursor, XC_spraycan);
     break;
   }
 }
@@ -1025,6 +1097,13 @@ int main()
         addPoint(&path, e.xbutton.x, e.xbutton.y);
         XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
       }
+      else if (shape == 'b')
+      {
+        drawing = 1;
+        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+        blurArea(d, w, gc, e.xbutton.x, e.xbutton.y, BLUR_BRUSH, BLUR_RADIUS, width, height);
+        XFlush(d);
+      }
       break;
 
     case Expose:
@@ -1042,6 +1121,17 @@ int main()
           XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
           smoothPath(&path, SMOOTHING_LEVEL);
           drawPath(d, w, gc, &path);
+          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          maxRedo = 0;
+          redoLevel = 0;
+        }
+        break;
+
+      case 'b':
+        if (drawing)
+        {
+          drawing = 0;
           undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
           maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
           maxRedo = 0;
@@ -1255,6 +1345,12 @@ int main()
       case '[':
         drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
+      case 'b':
+        if (drawing)
+        {
+          blurArea(d, w, gc, e.xmotion.x, e.xmotion.y, BLUR_BRUSH, BLUR_RADIUS, width, height);
+        }
+        break;
       }
       XFlush(d);
       break;
@@ -1397,6 +1493,12 @@ int main()
         else if (klen == 1 && kbuf[0] == '{')
         {
           shape = '{';
+          p = 0;
+          setShapeCursor(d, w, &cursor, shape);
+        }
+        else if (klen == 1 && (kbuf[0] == 'b' || kbuf[0] == 'B'))
+        {
+          shape = 'b';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
