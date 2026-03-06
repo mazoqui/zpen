@@ -62,8 +62,8 @@
     - `a`: Arrow
     - `r`: Rectangle (press again to toggle rounded/straight corners)
     - `c`: Circle
-    - `k`: Curly Braces `{` `}` (direction auto-detected by drag direction)
-    - `b`: Square Brackets `[` `]` (direction auto-detected by drag direction)
+    - `{`: Curly Braces `{` `}` (direction auto-detected by drag direction)
+    - `[`: Square Brackets `[` `]` (direction auto-detected by drag direction)
     - `t`: Text input at cursor position
 
 ### Color Controls
@@ -194,8 +194,8 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/or
 ```
 
 ### Direction Detection
-- **Curly Braces (`k`)**: Drag left-to-right for `{`, drag right-to-left for `}`
-- **Square Brackets (`b`)**: Drag left-to-right for `[`, drag right-to-left for `]`
+- **Curly Braces (`{`)**: Drag left-to-right for `{`, drag right-to-left for `}`
+- **Square Brackets (`[`)**: Drag left-to-right for `[`, drag right-to-left for `]`
 
 ### Mouse Controls
 
@@ -293,8 +293,8 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | | `a` | Arrow |
 | | `r` | Rectangle (toggle rounded/straight) |
 | | `c` | Circle |
-| | `k` | Curly braces `{` `}` |
-| | `b` | Square brackets `[` `]` |
+| | `{` | Curly braces `{` `}` |
+| | `[` | Square brackets `[` `]` |
 | | `t` | Text input |
 | **Colors** | `Space` | Next color (9 total) |
 | | `←` `→` | Navigate colors |

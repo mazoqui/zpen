@@ -776,10 +776,10 @@ void setShapeCursor(Display *d, Window w, Cursor *cursor, char shape)
   case 'l':
     setCursor(d, w, cursor, XC_tcross);
     break;
-  case 'k':
+  case '{':
     setCursor(d, w, cursor, XC_left_side);
     break;
-  case 'b':
+  case '[':
     setCursor(d, w, cursor, XC_left_side);
     break;
   }
@@ -1163,7 +1163,7 @@ int main()
         drawLine(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         break;
 
-      case 'k':
+      case '{':
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
@@ -1174,7 +1174,7 @@ int main()
         drawBrace(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y);
         break;
 
-      case 'b':
+      case '[':
         if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
         {
           drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
@@ -1210,10 +1210,10 @@ int main()
         case 'l':
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
-        case 'k':
+        case '{':
           drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
-        case 'b':
+        case '[':
           drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         }
@@ -1249,10 +1249,10 @@ int main()
       case 'l':
         drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
-      case 'k':
+      case '{':
         drawBrace(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
-      case 'b':
+      case '[':
         drawBracket(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         break;
       }
@@ -1337,6 +1337,11 @@ int main()
       }
       else
       {
+        char kbuf[8];
+        KeySym ksym;
+        int klen = XLookupString(&e.xkey, kbuf, sizeof(kbuf) - 1, &ksym, NULL);
+        kbuf[klen] = '\0';
+
         if (e.xkey.keycode == 0x09)
         {
           if (skipNextEsc)
@@ -1389,9 +1394,9 @@ int main()
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (e.xkey.keycode == 45)
+        else if (klen == 1 && kbuf[0] == '{')
         {
-          shape = 'k';
+          shape = '{';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
@@ -1481,9 +1486,9 @@ int main()
             XSetDashes(d, gc, 0, dash_pattern, 2);
           XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
         }
-        else if (e.xkey.keycode == 56)
+        else if (klen == 1 && kbuf[0] == '[')
         {
-          shape = 'b';
+          shape = '[';
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
