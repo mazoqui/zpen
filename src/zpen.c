@@ -40,7 +40,7 @@
 #define UNDO_MAX 20
 #define ARROW_SIZE 20
 #define BLUR_RADIUS 4
-#define BLUR_BRUSH 24
+#define BLUR_BRUSH 18
 // xlsfonts | grep courier
 // #define FONT "-*-*-*-*-*-*-60-*-*-*-*-*-iso8859-*"
 #define FONT "*-helvetica-*-18-*"
@@ -141,7 +141,6 @@ int convert_ppm_to_png(const char *ppm_path, const char *png_path)
   free(data);
   return 1;
 }
-
 
 /**
  * Get the full path of the ~/.zpen directory
@@ -767,20 +766,30 @@ void blurArea(Display *d, Window w, GC gc, int cx, int cy,
   int y1 = y0 + brushSize;
 
   // Clamp to window bounds
-  if (x0 < 0) x0 = 0;
-  if (y0 < 0) y0 = 0;
-  if (x1 > (int)winW) x1 = (int)winW;
-  if (y1 > (int)winH) y1 = (int)winH;
+  if (x0 < 0)
+    x0 = 0;
+  if (y0 < 0)
+    y0 = 0;
+  if (x1 > (int)winW)
+    x1 = (int)winW;
+  if (y1 > (int)winH)
+    y1 = (int)winH;
 
   int bw = x1 - x0;
   int bh = y1 - y0;
-  if (bw <= 0 || bh <= 0) return;
+  if (bw <= 0 || bh <= 0)
+    return;
 
   XImage *img = XGetImage(d, w, x0, y0, bw, bh, AllPlanes, ZPixmap);
-  if (!img) return;
+  if (!img)
+    return;
 
   unsigned long *buf = malloc(bw * bh * sizeof(unsigned long));
-  if (!buf) { XDestroyImage(img); return; }
+  if (!buf)
+  {
+    XDestroyImage(img);
+    return;
+  }
 
   // Box blur
   for (int iy = 0; iy < bh; iy++)
@@ -806,7 +815,7 @@ void blurArea(Display *d, Window w, GC gc, int cx, int cy,
         }
       }
       buf[iy * bw + ix] = ((aa / count) << 24) | ((ra / count) << 16) |
-                           ((ga / count) << 8) | (ba / count);
+                          ((ga / count) << 8) | (ba / count);
     }
   }
 
@@ -1160,9 +1169,9 @@ int main()
           Picture mask_pic = XRenderCreatePicture(d, mask, a8fmt, 0, NULL);
           XRenderColor rc;
           rc.alpha = 0x3333;
-          rc.red   = (unsigned short)((((color_list[color_index] >> 16) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+          rc.red = (unsigned short)((((color_list[color_index] >> 16) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
           rc.green = (unsigned short)((((color_list[color_index] >> 8) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
-          rc.blue  = (unsigned short)(((color_list[color_index] & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+          rc.blue = (unsigned short)(((color_list[color_index] & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
           Picture src = XRenderCreateSolidFill(d, &rc);
           XRenderPictFormat *fmt = XRenderFindVisualFormat(d, vinfo.visual);
           Picture dst = XRenderCreatePicture(d, w, fmt, 0, NULL);
@@ -1216,9 +1225,9 @@ int main()
             Picture pic = XRenderCreatePicture(d, w, fmt, 0, NULL);
             XRenderColor rc;
             rc.alpha = 0x3333;
-            rc.red   = (unsigned short)((((color_list[color_index] >> 16) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+            rc.red = (unsigned short)((((color_list[color_index] >> 16) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
             rc.green = (unsigned short)((((color_list[color_index] >> 8) & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
-            rc.blue  = (unsigned short)(((color_list[color_index] & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
+            rc.blue = (unsigned short)(((color_list[color_index] & 0xFF) * 257UL * rc.alpha) / 0xFFFF);
             XRenderFillRectangle(d, PictOpOver, pic, &rc, fx, fy, fw, fh);
             XRenderFreePicture(d, pic);
           }
