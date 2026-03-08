@@ -39,7 +39,7 @@
 #define THICKNESS 3
 #define UNDO_MAX 20
 #define ARROW_SIZE 20
-#define BLUR_RADIUS 4
+#define BLUR_RADIUS 1
 #define BLUR_BRUSH 18
 // xlsfonts | grep courier
 // #define FONT "-*-*-*-*-*-*-60-*-*-*-*-*-iso8859-*"
