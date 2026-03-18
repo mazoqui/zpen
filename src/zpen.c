@@ -351,7 +351,34 @@ void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x
     }
   }
 
-  // Clip to window bounds
+  // Draw gradient drop shadow on bottom and right edges
+  {
+    int shadow_size = 6;
+    XRenderPictFormat *fmt = XRenderFindVisualFormat(d, vinfo->visual);
+    Picture dst = XRenderCreatePicture(d, w, fmt, 0, NULL);
+    for (int i = 1; i <= shadow_size; i++)
+    {
+      unsigned short alpha = (unsigned short)(0x4000 * (shadow_size - i + 1) / shadow_size);
+      XRenderColor rc = {0, 0, 0, alpha};
+      // Bottom edge strip
+      int bx = mouse_x + i;
+      int by = mouse_y + img_h + i - 1;
+      int bw = img_w + shadow_size - i;
+      if (bx + bw > (int)win_width) bw = (int)win_width - bx;
+      if (by < (int)win_height && bw > 0)
+        XRenderFillRectangle(d, PictOpOver, dst, &rc, bx, by, bw, 1);
+      // Right edge strip
+      int rx = mouse_x + img_w + i - 1;
+      int ry = mouse_y + i;
+      int rh = img_h + shadow_size - i;
+      if (ry + rh > (int)win_height) rh = (int)win_height - ry;
+      if (rx < (int)win_width && rh > 0)
+        XRenderFillRectangle(d, PictOpOver, dst, &rc, rx, ry, 1, rh);
+    }
+    XRenderFreePicture(d, dst);
+  }
+
+  // Clip image to window bounds
   int paste_w = img_w;
   int paste_h = img_h;
   if (mouse_x + paste_w > (int)win_width)
@@ -360,6 +387,16 @@ void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x
     paste_h = (int)win_height - mouse_y;
   if (paste_w > 0 && paste_h > 0)
     XPutImage(d, w, gc, img, 0, 0, mouse_x, mouse_y, paste_w, paste_h);
+
+  // Draw a subtle 1px border on top and left edges
+  {
+    XRenderPictFormat *fmt = XRenderFindVisualFormat(d, vinfo->visual);
+    Picture dst = XRenderCreatePicture(d, w, fmt, 0, NULL);
+    XRenderColor rc = {0, 0, 0, 0x1800}; // Black at ~9% opacity
+    XRenderFillRectangle(d, PictOpOver, dst, &rc, mouse_x, mouse_y, paste_w, 1);       // top edge
+    XRenderFillRectangle(d, PictOpOver, dst, &rc, mouse_x, mouse_y, 1, paste_h);       // left edge
+    XRenderFreePicture(d, dst);
+  }
 
   XDestroyImage(img); // This also frees img->data
   stbi_image_free(data);
