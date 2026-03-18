@@ -74,6 +74,9 @@ typedef struct
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 void signal_handler(int sig)
 {
   printf("Caught signal %d, exiting...\n", sig);
@@ -310,6 +313,60 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
   XDestroyImage(image);
 }
 
+void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x, int mouse_y, unsigned int win_width, unsigned int win_height)
+{
+  // Save clipboard image to temp file using xclip
+  int result = system("xclip -selection clipboard -t image/png -o > /tmp/zpen_paste.png 2>/dev/null");
+  if (result != 0)
+  {
+    fprintf(stderr, "No image in clipboard or xclip failed\n");
+    return;
+  }
+
+  // Load the PNG image using stb_image
+  int img_w, img_h, channels;
+  unsigned char *data = stbi_load("/tmp/zpen_paste.png", &img_w, &img_h, &channels, 4); // Force RGBA
+  if (!data)
+  {
+    fprintf(stderr, "Failed to load clipboard image\n");
+    remove("/tmp/zpen_paste.png");
+    return;
+  }
+
+  // Create XImage from loaded data
+  XImage *img = XCreateImage(d, vinfo->visual, 32, ZPixmap, 0, NULL, img_w, img_h, 32, 0);
+  img->data = malloc(img->bytes_per_line * img_h);
+
+  for (int y = 0; y < img_h; y++)
+  {
+    for (int x = 0; x < img_w; x++)
+    {
+      int idx = (y * img_w + x) * 4;
+      unsigned char r = data[idx + 0];
+      unsigned char g = data[idx + 1];
+      unsigned char b = data[idx + 2];
+      unsigned char a = data[idx + 3];
+      unsigned long pixel = ((unsigned long)a << 24) | ((unsigned long)r << 16) | ((unsigned long)g << 8) | b;
+      XPutPixel(img, x, y, pixel);
+    }
+  }
+
+  // Clip to window bounds
+  int paste_w = img_w;
+  int paste_h = img_h;
+  if (mouse_x + paste_w > (int)win_width)
+    paste_w = (int)win_width - mouse_x;
+  if (mouse_y + paste_h > (int)win_height)
+    paste_h = (int)win_height - mouse_y;
+  if (paste_w > 0 && paste_h > 0)
+    XPutImage(d, w, gc, img, 0, 0, mouse_x, mouse_y, paste_w, paste_h);
+
+  XDestroyImage(img); // This also frees img->data
+  stbi_image_free(data);
+  remove("/tmp/zpen_paste.png");
+  XFlush(d);
+}
+
 static inline void addPoint(Path *p, int x, int y)
 {
   da_append(p, ((Point){x, y}));
@@ -503,7 +560,7 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
   int gap = 4;         // Small gap between circles
   int palette_width = MAX_COLORS * circle_size + (MAX_COLORS - 1) * gap;
   int start_x = screen_width - palette_width - 4; // 4px margin from right edge
-  int y = screen_height - 28;                     // Position from bottom edge (accounting for -35 window offset)
+  int y = screen_height - 10;                     // Position from bottom edge (accounting for -35 window offset)
 
   // Save current GC color
   XGCValues values;
@@ -1200,9 +1257,10 @@ int main()
           // Sync display and wait for compositor to update before capture
           XSync(d, False);
           usleep(50000); // 50ms delay for compositor
-          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, f_screenshot == 2 ? 1 : 0);
+          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, (f_screenshot == 2 || f_screenshot == 3) ? 1 : 0);
           XSetForeground(d, gcPreDraw, guideColor(color));
           shape = prv_shape;
+          setShapeCursor(d, w, &cursor, shape);
           if (f_screenshot == 2)
           {
             bye(d, w);
@@ -1461,6 +1519,26 @@ int main()
         else if (e.xkey.keycode == 64)
         {
           key_mods |= KeyMod_LAlt;
+        }
+        else if ((e.xkey.state & ControlMask) && e.xkey.keycode == 54)
+        {
+          // Ctrl+C: copy screenshot to clipboard (no exit)
+          prv_shape = shape;
+          shape = 'r';
+          p = 0;
+          f_screenshot = 3;
+          setCursor(d, w, &cursor, XC_icon);
+          XSetForeground(d, gcPreDraw, guideColor(0xFFFFFFFF));
+        }
+        else if ((e.xkey.state & ControlMask) && e.xkey.keycode == 55)
+        {
+          // Ctrl+V: paste clipboard image at mouse cursor
+          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+          pasteClipboard(d, w, gc, &vinfo, e.xbutton.x, e.xbutton.y, width, height);
+          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          maxRedo = 0;
+          redoLevel = 0;
         }
         else if (e.xkey.keycode == 54)
         {

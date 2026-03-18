@@ -16,9 +16,11 @@
     - **Square Brackets:** Draw opening `[` and closing `]` brackets with automatic direction detection.
     - **Blur:** Freehand blur brush to obscure sensitive content on screen.
     - **Text Input:** Add text annotations at any position on the screen.
-- **Screenshot Capture:**
-    
-    - Capture the current state of the screen as a screenshot and save it as a `.png` file.
+- **Screenshot & Clipboard:**
+
+    - Capture a screen region and save as `.png` file or copy to clipboard.
+    - Copy a region to clipboard without exiting (`Ctrl+C`).
+    - Paste images from clipboard directly onto the canvas (`Ctrl+V`).
 - **Undo/Redo System:**
     
     - Full undo/redo functionality with up to 20 levels of history.
@@ -77,9 +79,11 @@
 - `Shift+Ctrl+Z`: Redo last undone action
 - `u`: Undo (backward compatibility)
 
-### Screenshot Tools
-- `s`: Capture screenshot, copy to clipboard, and exit
-- `f`: Capture screenshot and save as PNG file
+### Screenshot & Clipboard
+- `s`: Capture screenshot region, copy to clipboard, and exit
+- `f`: Capture screenshot region and save as PNG file
+- `Ctrl+C`: Copy screenshot region to clipboard (without exiting)
+- `Ctrl+V`: Paste clipboard image at current mouse cursor position
 
 ### Line Style
 - `*`: Toggle between solid and dashed lines
@@ -106,7 +110,7 @@
   - `xclip` - Clipboard management (usually pre-installed)
   - `gcc` - C compiler
   - `make` (optional, for build automation)
-  - compositer like `picom` that supports transprency
+  - compositor like `picom` that supports transparency
 
 ### Install Dependencies
 
@@ -284,6 +288,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 - Built with **Xlib** for X Window System integration
 - Uses **stb_image_write.h** for PNG file generation
+- Uses **stb_image.h** for PNG image loading (clipboard paste)
 - Inspired by annotation tools for presentations and tutorials
 
 ## Quick Reference
@@ -311,10 +316,12 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | | `Shift+Ctrl+Z` | Redo |
 | | `u` | Undo (legacy) |
 | | `n` | Add number |
-| **Screenshot** | `s` | Save & exit |
+| **Screenshot** | `s` | Copy to clipboard & exit |
 | | `f` | Save to file |
+| | `Ctrl+C` | Copy to clipboard (no exit) |
+| **Clipboard** | `Ctrl+V` | Paste image at cursor |
 | **System** | `ESC` | Exit |
-| | `LShift+LAlt+p` | Swap focus between zPen and applications bellow |
+| | `LShift+LAlt+p` | Swap focus between zPen and applications below |
 
 ---
 
