@@ -8,8 +8,11 @@
 // For clipboard management it requires the xclip program
 // sudo apt install xclip
 //
-// Hot to compile:
+// How to compile quiet:
 // gcc zpen.c -o zpen -lX11 -lXrender -lm
+//
+// How to compile loud:
+// gcc -Wall -Wextra -o zpen src/zpen.c -lX11 -lXrender -lm
 //
 
 #include <X11/Xatom.h>
@@ -364,14 +367,16 @@ void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x
       int bx = mouse_x + i;
       int by = mouse_y + img_h + i - 1;
       int bw = img_w + shadow_size - i;
-      if (bx + bw > (int)win_width) bw = (int)win_width - bx;
+      if (bx + bw > (int)win_width)
+        bw = (int)win_width - bx;
       if (by < (int)win_height && bw > 0)
         XRenderFillRectangle(d, PictOpOver, dst, &rc, bx, by, bw, 1);
       // Right edge strip
       int rx = mouse_x + img_w + i - 1;
       int ry = mouse_y + i;
       int rh = img_h + shadow_size - i;
-      if (ry + rh > (int)win_height) rh = (int)win_height - ry;
+      if (ry + rh > (int)win_height)
+        rh = (int)win_height - ry;
       if (rx < (int)win_width && rh > 0)
         XRenderFillRectangle(d, PictOpOver, dst, &rc, rx, ry, 1, rh);
     }
@@ -392,9 +397,9 @@ void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x
   {
     XRenderPictFormat *fmt = XRenderFindVisualFormat(d, vinfo->visual);
     Picture dst = XRenderCreatePicture(d, w, fmt, 0, NULL);
-    XRenderColor rc = {0, 0, 0, 0x1800}; // Black at ~9% opacity
-    XRenderFillRectangle(d, PictOpOver, dst, &rc, mouse_x, mouse_y, paste_w, 1);       // top edge
-    XRenderFillRectangle(d, PictOpOver, dst, &rc, mouse_x, mouse_y, 1, paste_h);       // left edge
+    XRenderColor rc = {0, 0, 0, 0x1800};                                         // Black at ~9% opacity
+    XRenderFillRectangle(d, PictOpOver, dst, &rc, mouse_x, mouse_y, paste_w, 1); // top edge
+    XRenderFillRectangle(d, PictOpOver, dst, &rc, mouse_x, mouse_y, 1, paste_h); // left edge
     XRenderFreePicture(d, dst);
   }
 
@@ -1072,36 +1077,45 @@ int main()
   gcPreDraw = XCreateGC(d, w, GCForeground + GCFunction, &gcValuesPreDraw);
   XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
 
-  // Map window
-  XMapWindow(d, w);
-  XFlush(d);
-
-  // Wait for window to be mapped and get focus
-  usleep(100000);
-
-  // Fill entire window with opaque black so no transparent gaps remain
-  XSetForeground(d, gc, 0xFF000000);
-  XFillRectangle(d, w, gc, 0, 0, width, height);
-  XSetForeground(d, gc, color);
-
-  // Copy frozen background to window - window is at (0,0) matching the captured screenshot
+  // Prepare background pixmap before mapping so the window appears with correct content instantly
+  Pixmap bgPixmap = XCreatePixmap(d, w, width, height, vinfo.depth);
   {
+    GC bgGC = XCreateGC(d, bgPixmap, 0, NULL);
     // Convert 24-bit root window capture to 32-bit (add alpha=0xFF) to match our window depth
     XImage *bg32 = XCreateImage(d, vinfo.visual, 32, ZPixmap, 0, NULL,
                                 width, height, 32, 0);
     bg32->data = malloc(bg32->bytes_per_line * height);
-    for (int y = 0; y < height; y++)
+    for (unsigned int y = 0; y < height; y++)
     {
-      for (int x = 0; x < width; x++)
+      for (unsigned int x = 0; x < width; x++)
       {
         unsigned long pixel = XGetPixel(bgImage, x, y);
         XPutPixel(bg32, x, y, pixel | 0xFF000000);
       }
     }
-    XPutImage(d, w, gc, bg32, 0, 0, 0, 0, width, height);
+    XPutImage(d, bgPixmap, bgGC, bg32, 0, 0, 0, 0, width, height);
     XDestroyImage(bg32);
+    XFreeGC(d, bgGC);
   }
   XDestroyImage(bgImage);
+
+  // Set background pixmap so window appears with the desktop screenshot from the first frame
+  XSetWindowBackgroundPixmap(d, w, bgPixmap);
+  XFreePixmap(d, bgPixmap);
+
+  // Map window - it will display with the background pixmap immediately (no blink)
+  XMapWindow(d, w);
+
+  // Wait for the window to actually be mapped before proceeding
+  {
+    XEvent ev;
+    while (1)
+    {
+      XNextEvent(d, &ev);
+      if (ev.type == MapNotify)
+        break;
+    }
+  }
 
   // Set input focus to our window
   XSetInputFocus(d, w, RevertToParent, CurrentTime);
