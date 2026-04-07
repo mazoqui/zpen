@@ -11,7 +11,7 @@
     - **Rectangles:** Draw rectangles with rounded corners (default) or straight corners. Press `r` again to toggle.
     - **Circles:** Draw circles by defining the center and radius.
     - **Lines:** Draw straight lines by specifying start and end points.
-    - **Arrows:** Draw arrows to point out specific areas on the screen.
+    - **Arrows:** Draw straight arrows or hold `Shift` to draw freehand arrows with an auto-directed arrowhead.
     - **Curly Braces:** Draw opening `{` and closing `}` braces with automatic direction detection.
     - **Square Brackets:** Draw opening `[` and closing `]` brackets with automatic direction detection.
     - **Blur:** Freehand blur brush to obscure sensitive content on screen.
@@ -34,6 +34,10 @@
 
     - Hold `Shift` while drawing a rectangle or circle to fill the shape with a translucent version (20% opacity) of the active color.
     - Acts as a highlighter/marker that lets the background show through.
+- **Freehand Arrow:**
+
+    - Hold `Shift` while drawing with the Arrow tool to draw a freehand curve with an arrowhead at the end.
+    - The arrowhead direction is automatically calculated from the average of the last path samples.
 - **Pen Thickness Control:**
 
     - Increase pen thickness with `+` key (regular or numpad).
@@ -62,7 +66,7 @@
 - Press the following keys to switch between drawing tools:
     - `p`: Pen (Freehand drawing)
     - `l`: Line
-    - `a`: Arrow
+    - `a`: Arrow (hold `Shift` for freehand arrow)
     - `r`: Rectangle (press again to toggle rounded/straight corners)
     - `c`: Circle
     - `{`: Curly Braces `{` `}` (direction auto-detected by drag direction)
@@ -88,8 +92,9 @@
 ### Line Style
 - `*`: Toggle between solid and dashed lines
 
-### Translucent Fill
+### Shift Modifiers
 - Hold `Shift` while drawing a rectangle or circle to fill with a translucent color
+- Hold `Shift` while drawing an arrow to draw freehand with an arrowhead at the end
 
 ### Pen Thickness
 - `+`: Increase pen thickness
@@ -309,6 +314,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | | | *Colors: red, green, blue, yellow, orange, white, magenta, pink, gray* |
 | **Style** | `*` | Toggle solid/dashed lines |
 | | `Shift`+draw | Fill rectangle/circle with translucent color |
+| | `Shift`+draw | Freehand arrow (with Arrow tool) |
 | **Thickness** | `+` | Increase pen thickness |
 | | `-` | Decrease pen thickness |
 | | `0` | Reset to default thickness |

@@ -42,6 +42,7 @@
 #define THICKNESS 3
 #define UNDO_MAX 20
 #define ARROW_SIZE 20
+#define ARROW_DIRECTION_SAMPLES 10
 #define BLUR_RADIUS 1
 #define BLUR_BRUSH 18
 // xlsfonts | grep courier
@@ -494,10 +495,8 @@ void drawLine(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1)
  * x0, y0: point that marks the tip of the line
  * x1, y1: point that marks the end of the line
  */
-void drawArrow(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1, int arrowSize)
+void drawArrowHead(Display *d, Window w, GC gc, int x1, int y1, float angle, int arrowSize)
 {
-  drawLine(d, w, gc, x0, y0, x1, y1);
-  float angle = atan2(y0 - y1, x0 - x1) + PI;
   float arrowAngle = PI / 4;
   int f_x1 = x1 - arrowSize * cos(angle + arrowAngle);
   int f_y1 = y1 - arrowSize * sin(angle + arrowAngle);
@@ -505,6 +504,13 @@ void drawArrow(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1, int 
   int f_y2 = y1 - arrowSize * sin(angle - arrowAngle);
   drawLine(d, w, gc, x1, y1, f_x1, f_y1);
   drawLine(d, w, gc, x1, y1, f_x2, f_y2);
+}
+
+void drawArrow(Display *d, Window w, GC gc, int x0, int y0, int x1, int y1, int arrowSize)
+{
+  drawLine(d, w, gc, x0, y0, x1, y1);
+  float angle = atan2(y0 - y1, x0 - x1) + PI;
+  drawArrowHead(d, w, gc, x1, y1, angle, arrowSize);
 }
 
 /**
@@ -1207,7 +1213,7 @@ int main()
       rect[p].x = e.xbutton.x;
       rect[p].y = e.xbutton.y;
       p++;
-      if (shape == 'p')
+      if (shape == 'p' || (shape == 'a' && (e.xbutton.state & ShiftMask)))
       {
         drawing = 1;
         path.count = 0;
@@ -1350,14 +1356,46 @@ int main()
         break;
 
       case 'a':
-        if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
+        if (drawing)
         {
-          drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
+          // Freehand arrow mode (Shift+draw)
+          drawing = 0;
+          XCopyArea(d, undoStack[undoLevel], w, gc, 0, 0, width, height, 0, 0);
+          smoothPath(&path, SMOOTHING_LEVEL);
+          drawPath(d, w, gc, &path);
+          // Calculate arrow direction from last N samples
+          if (path.count >= 2)
+          {
+            int samples = ARROW_DIRECTION_SAMPLES;
+            if (samples > path.count - 1) samples = path.count - 1;
+            int start = path.count - 1 - samples;
+            float avg_dx = 0, avg_dy = 0;
+            for (int i = start; i < path.count - 1; i++)
+            {
+              avg_dx += path.items[i + 1].x - path.items[i].x;
+              avg_dy += path.items[i + 1].y - path.items[i].y;
+            }
+            float angle = atan2(avg_dy, avg_dx);
+            drawArrowHead(d, w, gc, path.items[path.count - 1].x,
+                          path.items[path.count - 1].y, angle, ARROW_SIZE);
+          }
+          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          maxRedo = 0;
+          redoLevel = 0;
         }
-        XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
-        undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
-        maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
-        drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
+        else
+        {
+          // Straight arrow mode (normal)
+          if (pointPreDraw.x >= 0 && pointPreDraw.y >= 0)
+          {
+            drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
+          }
+          XCopyArea(d, w, undoStack[undoLevel], gc, 0, 0, width, height, 0, 0);
+          undoLevel = (undoLevel >= UNDO_MAX - 1) ? 0 : ++undoLevel;
+          maxUndo = (maxUndo >= UNDO_MAX) ? UNDO_MAX : ++maxUndo;
+          drawArrow(d, w, gc, rect[0].x, rect[0].y, rect[1].x, rect[1].y, ARROW_SIZE);
+        }
         break;
 
       case 'l':
@@ -1413,7 +1451,8 @@ int main()
             drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
           break;
         case 'a':
-          drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
+          if (!drawing)
+            drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
           break;
         case 'l':
           drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
@@ -1430,6 +1469,20 @@ int main()
       pointPreDraw.y = e.xmotion.y;
       switch (shape)
       {
+      case 'a':
+        if (drawing)
+        {
+          addPoint(&path, e.xmotion.x, e.xmotion.y);
+          if (path.count > 1)
+          {
+            XDrawLine(d, w, gcPreDraw,
+                      path.items[path.count - 2].x, path.items[path.count - 2].y,
+                      path.items[path.count - 1].x, path.items[path.count - 1].y);
+          }
+          break;
+        }
+        drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
+        break;
       case 'p':
         if (drawing)
         {
@@ -1450,9 +1503,6 @@ int main()
           drawRoundedRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
         else
           drawRetangle(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
-        break;
-      case 'a':
-        drawArrow(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y, ARROW_SIZE);
         break;
       case 'l':
         drawLine(d, w, gcPreDraw, rect[0].x, rect[0].y, pointPreDraw.x, pointPreDraw.y);
