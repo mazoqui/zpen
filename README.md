@@ -21,6 +21,7 @@
     - Capture a screen region and save as `.png` file or copy to clipboard.
     - Copy a region to clipboard without exiting (`Ctrl+C`).
     - Paste images from clipboard directly onto the canvas (`Ctrl+V`).
+    - OCR a region with `o` to copy the recognized text to the clipboard (requires `tesseract`).
 - **Undo/Redo System:**
     
     - Full undo/redo functionality with up to 20 levels of history.
@@ -88,6 +89,7 @@
 - `f`: Capture screenshot region and save as PNG file
 - `Ctrl+C`: Copy screenshot region to clipboard (without exiting)
 - `Ctrl+V`: Paste clipboard image at current mouse cursor position
+- `o`: Capture region, run OCR, and copy the recognized text to the clipboard (requires `tesseract`; the `o` key is a no-op if tesseract is not installed)
 
 ### Line Style
 - `*`: Toggle between solid and dashed lines
@@ -116,12 +118,15 @@
   - `gcc` - C compiler
   - `make` (optional, for build automation)
   - compositor like `picom` that supports transparency
+  - `tesseract-ocr` - **Optional**, only required for the `o` (OCR to clipboard) shortcut
 
 ### Install Dependencies
 
 **Ubuntu/Debian:**
 ```bash
 sudo apt install libx11-dev libxrender-dev xclip build-essential
+# Optional, for the `o` (OCR) shortcut:
+sudo apt install tesseract-ocr
 ```
 
 **Fedora/CentOS/RHEL:**
@@ -129,11 +134,15 @@ sudo apt install libx11-dev libxrender-dev xclip build-essential
 sudo dnf install libX11-devel libXrender-devel xclip gcc
 # or for older versions:
 sudo yum install libX11-devel libXrender-devel xclip gcc
+# Optional, for the `o` (OCR) shortcut:
+sudo dnf install tesseract
 ```
 
 **Arch Linux:**
 ```bash
 sudo pacman -S libx11 libxrender xclip gcc
+# Optional, for the `o` (OCR) shortcut:
+sudo pacman -S tesseract tesseract-data-eng
 ```
 
 ## Installation
@@ -294,6 +303,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 - Built with **Xlib** for X Window System integration
 - Uses **stb_image_write.h** for PNG file generation
 - Uses **stb_image.h** for PNG image loading (clipboard paste)
+- Uses **tesseract** (optional) for OCR text recognition
 - Inspired by annotation tools for presentations and tutorials
 
 ## Quick Reference
@@ -325,6 +335,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Screenshot** | `s` | Copy to clipboard & exit |
 | | `f` | Save to file |
 | | `Ctrl+C` | Copy to clipboard (no exit) |
+| | `o` | OCR region & copy text to clipboard (requires `tesseract`) |
 | **Clipboard** | `Ctrl+V` | Paste image at cursor |
 | **System** | `ESC` | Exit |
 | | `LShift+LAlt+p` | Swap focus between zPen and applications below |

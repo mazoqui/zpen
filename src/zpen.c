@@ -208,10 +208,106 @@ int ensure_zpen_directory()
   return 0;
 }
 
+/**
+ * Returns 1 if the `tesseract` binary is on PATH, 0 otherwise. Cached after
+ * first call so the 'o' key handler can probe it cheaply on every press.
+ */
+int hasTesseract(void)
+{
+  static int cached = -1;
+  if (cached == -1)
+    cached = (system("command -v tesseract > /dev/null 2>&1") == 0) ? 1 : 0;
+  return cached;
+}
+
+/**
+ * Run tesseract OCR on a PNG file and copy the extracted text to the clipboard.
+ * Returns 1 on success, 0 on failure.
+ */
+int runTesseractOCR(const char *image_path)
+{
+  if (!hasTesseract())
+  {
+    fprintf(stderr, "tesseract is not installed. Install with: sudo apt install tesseract-ocr\n");
+    return 0;
+  }
+
+  // Tesseract works best around 300 DPI. Screen captures are ~96 DPI, so
+  // upscale ~3x with nearest-neighbor before OCR — this dramatically
+  // improves accuracy on small/antialiased screen text.
+  const char *ocr_input = "/tmp/zpen_ocr_in.png";
+  int iw, ih, ic;
+  unsigned char *src = stbi_load(image_path, &iw, &ih, &ic, 0);
+  if (!src)
+  {
+    fprintf(stderr, "OCR: failed to load %s\n", image_path);
+    return 0;
+  }
+  const int scale = 3;
+  size_t ow = (size_t)iw * scale;
+  size_t oh = (size_t)ih * scale;
+  unsigned char *dst = (unsigned char *)malloc(ow * oh * (size_t)ic);
+  if (!dst)
+  {
+    stbi_image_free(src);
+    fprintf(stderr, "OCR: out of memory while upscaling.\n");
+    return 0;
+  }
+  for (size_t y = 0; y < oh; y++)
+  {
+    size_t sy = y / (size_t)scale;
+    for (size_t x = 0; x < ow; x++)
+    {
+      size_t sx = x / (size_t)scale;
+      memcpy(&dst[(y * ow + x) * (size_t)ic],
+             &src[(sy * (size_t)iw + sx) * (size_t)ic], (size_t)ic);
+    }
+  }
+  stbi_image_free(src);
+  int wrote = stbi_write_png(ocr_input, (int)ow, (int)oh, ic, dst, (int)(ow * (size_t)ic));
+  free(dst);
+  if (!wrote)
+  {
+    fprintf(stderr, "OCR: failed to write upscaled input.\n");
+    return 0;
+  }
+
+  const char *out_base = "/tmp/zpen_ocr";
+  const char *out_txt = "/tmp/zpen_ocr.txt";
+
+  // --psm 6: treat the region as a single uniform block of text.
+  char command[2048];
+  snprintf(command, sizeof(command),
+           "tesseract \"%s\" \"%s\" --psm 6 2>/dev/null", ocr_input, out_base);
+  int rc = system(command);
+  remove(ocr_input);
+  if (rc != 0)
+  {
+    fprintf(stderr, "Tesseract OCR failed.\n");
+    return 0;
+  }
+
+  snprintf(command, sizeof(command),
+           "xclip -selection clipboard -t text/plain -i \"%s\"", out_txt);
+  int result = system(command);
+  remove(out_txt);
+  if (result != 0)
+  {
+    fprintf(stderr, "Failed to copy OCR text to clipboard.\n");
+    return 0;
+  }
+  return 1;
+}
+
 /*
 convert to png
+
+clipMode controls how the resulting PNG is shared:
+  0 - save file only
+  1 - save file + copy image to clipboard
+  2 - save file + run tesseract OCR + copy text to clipboard
 */
-void saveScreenshotFile(XImage *image, int toClipboard)
+void saveScreenshotFile(XImage *image, int clipMode)
 {
   // Ensures the ~/.zpen directory exists
   if (ensure_zpen_directory() == -1)
@@ -262,7 +358,7 @@ void saveScreenshotFile(XImage *image, int toClipboard)
     printf("PPM file to JPEG conversion failed.\n");
   }
   remove("/tmp/screenshot.ppm"); // Clean the temporary file
-  if (toClipboard)
+  if (clipMode == 1)
   {
     // Increase buffer size to accommodate long filenames
     char command[1100]; // Increased from 200 to 1100 bytes
@@ -273,9 +369,13 @@ void saveScreenshotFile(XImage *image, int toClipboard)
       perror("Something went wrong with xclip call");
     }
   }
+  else if (clipMode == 2)
+  {
+    runTesseractOCR(filename);
+  }
 }
 
-void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1, int toClipboard)
+void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, int y1, int clipMode)
 {
   XImage *image;
 
@@ -313,7 +413,7 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
     }
   }
 
-  saveScreenshotFile(image, toClipboard);
+  saveScreenshotFile(image, clipMode);
   XDestroyImage(image);
 }
 
@@ -1314,7 +1414,12 @@ int main()
           // Sync display and wait for compositor to update before capture
           XSync(d, False);
           usleep(50000); // 50ms delay for compositor
-          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, (f_screenshot == 2 || f_screenshot == 3) ? 1 : 0);
+          int clipMode = 0;
+          if (f_screenshot == 2 || f_screenshot == 3)
+            clipMode = 1;
+          else if (f_screenshot == 4)
+            clipMode = 2;
+          saveScreenshot(d, w, screen, rect[0].x, rect[0].y, rect[1].x, rect[1].y, clipMode);
           XSetForeground(d, gcPreDraw, guideColor(color));
           shape = prv_shape;
           setShapeCursor(d, w, &cursor, shape);
@@ -1707,6 +1812,22 @@ int main()
           f_screenshot = 2;
           setCursor(d, w, &cursor, XC_icon);
           XSetForeground(d, gcPreDraw, guideColor(0xFFFFFFFF));
+        }
+        else if (klen == 1 && (kbuf[0] == 'o' || kbuf[0] == 'O'))
+        {
+          if (!hasTesseract())
+          {
+            fprintf(stderr, "tesseract is not installed. Install with: sudo apt install tesseract-ocr\n");
+          }
+          else
+          {
+            prv_shape = shape;
+            shape = 'r';
+            p = 0;
+            f_screenshot = 4;
+            setCursor(d, w, &cursor, XC_icon);
+            XSetForeground(d, gcPreDraw, guideColor(0xFFFFFFFF));
+          }
         }
         else if (e.xkey.keycode == 28)
         {
