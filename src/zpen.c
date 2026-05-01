@@ -1423,7 +1423,7 @@ int main()
           XSetForeground(d, gcPreDraw, guideColor(color));
           shape = prv_shape;
           setShapeCursor(d, w, &cursor, shape);
-          if (f_screenshot == 2)
+          if (f_screenshot == 2 || f_screenshot == 4)
           {
             bye(d, w);
           }
