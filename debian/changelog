@@ -1,4 +1,4 @@
-zpen (0.1.1-1) unstable; urgency=medium
+zpen (0.1.2-1) unstable; urgency=medium
 
   * Initial Debian packaging.
   * Hardened temp-file handling: removed predictable /tmp paths in screenshot,
