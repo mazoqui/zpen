@@ -3,88 +3,90 @@
 **zPen** is a powerful fullscreen drawing overlay tool for Linux systems written in C using Xlib. It creates a transparent drawing layer over your desktop, allowing you to annotate, sketch, and highlight anything on your screen. Perfect for presentations, tutorials, code reviews, and quick visual communication.
 
 [![Latest release](https://img.shields.io/github/v/release/mazoqui/zpen?label=latest&color=brightgreen)](https://github.com/mazoqui/zpen/releases/latest) ![Language](https://img.shields.io/badge/Language-C-blue) ![Platform](https://img.shields.io/badge/Platform-Linux-green) ![License](https://img.shields.io/badge/License-MIT-red)
+
 ## Features
 
 - **Drawing Tools:**
-    
-    - **Freehand Drawing:** Draw freehand on the screen with smoothing capabilities.
-    - **Rectangles:** Draw rectangles with rounded corners (default) or straight corners. Press `r` again to toggle.
-    - **Circles:** Draw circles by defining the center and radius.
-    - **Lines:** Draw straight lines by specifying start and end points.
-    - **Arrows:** Draw straight arrows or hold `Shift` to draw freehand arrows with an auto-directed arrowhead.
-    - **Curly Braces:** Draw opening `{` and closing `}` braces with automatic direction detection.
-    - **Square Brackets:** Draw opening `[` and closing `]` brackets with automatic direction detection.
-    - **Blur:** Freehand blur brush to obscure sensitive content on screen.
-    - **Text Input:** Add text annotations at any position on the screen.
+  - **Freehand Drawing:** Draw freehand on the screen with smoothing capabilities.
+  - **Rectangles:** Draw rectangles with rounded corners (default) or straight corners. Press `r` again to toggle.
+  - **Circles:** Draw circles by defining the center and radius.
+  - **Lines:** Draw straight lines by specifying start and end points.
+  - **Arrows:** Draw straight arrows or hold `Shift` to draw freehand arrows with an auto-directed arrowhead.
+  - **Curly Braces:** Draw opening `{` and closing `}` braces with automatic direction detection.
+  - **Square Brackets:** Draw opening `[` and closing `]` brackets with automatic direction detection.
+  - **Blur:** Freehand blur brush to obscure sensitive content on screen.
+  - **Text Input:** Add text annotations at any position on the screen.
 - **Screenshot & Clipboard:**
+  - Capture a screen region and save as `.png` file or copy to clipboard.
+  - Copy a region to clipboard without exiting (`Ctrl+C`).
+  - Paste images from clipboard directly onto the canvas (`Ctrl+V`).
+  - OCR a region with `o` to copy the recognized text to the clipboard (requires `tesseract`).
 
-    - Capture a screen region and save as `.png` file or copy to clipboard.
-    - Copy a region to clipboard without exiting (`Ctrl+C`).
-    - Paste images from clipboard directly onto the canvas (`Ctrl+V`).
-    - OCR a region with `o` to copy the recognized text to the clipboard (requires `tesseract`).
 - **Undo/Redo System:**
-    
-    - Full undo/redo functionality with up to 20 levels of history.
-    - Standard keyboard shortcuts: `Ctrl+Z` for undo, `Shift+Ctrl+Z` for redo.
-    - Backward compatibility: `u` key still works for undo.
+  - Full undo/redo functionality with up to 20 levels of history.
+  - Standard keyboard shortcuts: `Ctrl+Z` for undo, `Shift+Ctrl+Z` for redo.
+  - Backward compatibility: `u` key still works for undo.
 - **Line Style:**
+  - Toggle between solid and dashed lines with the `*` key.
+  - Dashed pattern: 8 pixels on, 6 pixels off.
 
-    - Toggle between solid and dashed lines with the `*` key.
-    - Dashed pattern: 8 pixels on, 6 pixels off.
 - **Translucent Fill:**
+  - Hold `Shift` while drawing a rectangle or circle to fill the shape with a translucent version (20% opacity) of the active color.
+  - Acts as a highlighter/marker that lets the background show through.
 
-    - Hold `Shift` while drawing a rectangle or circle to fill the shape with a translucent version (20% opacity) of the active color.
-    - Acts as a highlighter/marker that lets the background show through.
 - **Freehand Arrow:**
+  - Hold `Shift` while drawing with the Arrow tool to draw a freehand curve with an arrowhead at the end.
+  - The arrowhead direction is automatically calculated from the average of the last path samples.
 
-    - Hold `Shift` while drawing with the Arrow tool to draw a freehand curve with an arrowhead at the end.
-    - The arrowhead direction is automatically calculated from the average of the last path samples.
 - **Pen Thickness Control:**
+  - Increase pen thickness with `+` key (regular or numpad).
+  - Decrease pen thickness with `-` key (regular or numpad).
+  - Reset to default thickness with `0` key (regular or numpad).
+  - Thickness range: 1 to 20 (default: 3).
 
-    - Increase pen thickness with `+` key (regular or numpad).
-    - Decrease pen thickness with `-` key (regular or numpad).
-    - Reset to default thickness with `0` key (regular or numpad).
-    - Thickness range: 1 to 20 (default: 3).
 - **Frozen Desktop:**
+  - Captures a screenshot of the desktop at launch and uses it as a static background, preventing background UI changes from interfering with annotations.
 
-    - Captures a screenshot of the desktop at launch and uses it as a static background, preventing background UI changes from interfering with annotations.
 - **Color Selection:**
-    
-    - Choose from a palette of 9 predefined colors: red, green, blue, yellow, orange, white, magenta, pink, and gray.
-    - Visual color palette displayed at bottom-right corner showing all available colors.
-    - Selected color is highlighted with a filled circle and white border.
-    - Enhanced navigation: Use arrow keys (`←`/`→`) or spacebar to cycle colors.
+  - Choose from a palette of 9 predefined colors: red, green, blue, yellow, orange, white, magenta, pink, and gray.
+  - Visual color palette displayed at bottom-right corner showing all available colors.
+  - Selected color is highlighted with a filled circle and white border.
+  - Enhanced navigation: Use arrow keys (`←`/`→`) or spacebar to cycle colors.
 - **Step Counter:**
-    
-    - Display a step counter for drawings made with the freehand tool.
+  - Display a step counter for drawings made with the freehand tool.
 
 ## Usage
 
 - Use the mouse to draw on the screen.
 - Click and hold to start drawing freehand shapes.
 - Release the mouse button to complete the shape.
+
 ### Drawing Tools
+
 - Press the following keys to switch between drawing tools:
-    - `p`: Pen (Freehand drawing)
-    - `l`: Line
-    - `a`: Arrow (hold `Shift` for freehand arrow)
-    - `r`: Rectangle (press again to toggle rounded/straight corners)
-    - `c`: Circle
-    - `{`: Curly Braces `{` `}` (direction auto-detected by drag direction)
-    - `[`: Square Brackets `[` `]` (direction auto-detected by drag direction)
-    - `b`: Blur brush (freehand blur to obscure areas)
-    - `t`: Text input at cursor position
+  - `p`: Pen (Freehand drawing)
+  - `l`: Line
+  - `a`: Arrow (hold `Shift` for freehand arrow)
+  - `r`: Rectangle (press again to toggle rounded/straight corners)
+  - `c`: Circle
+  - `{`: Curly Braces `{` `}` (direction auto-detected by drag direction)
+  - `[`: Square Brackets `[` `]` (direction auto-detected by drag direction)
+  - `b`: Blur brush (freehand blur to obscure areas)
+  - `t`: Text input at cursor position
 
 ### Color Controls
+
 - `Space`: Cycle to next color
 - `←` / `→`: Navigate backward/forward through color palette
 
 ### Undo/Redo
+
 - `Ctrl+Z`: Undo last action
 - `Shift+Ctrl+Z`: Redo last undone action
 - `u`: Undo (backward compatibility)
 
 ### Screenshot & Clipboard
+
 - `s`: Capture screenshot region, copy to clipboard, and exit
 - `f`: Capture screenshot region and save as PNG file
 - `Ctrl+C`: Copy screenshot region to clipboard (without exiting)
@@ -92,19 +94,23 @@
 - `o`: Capture region, run OCR, and copy the recognized text to the clipboard (requires `tesseract`; the `o` key is a no-op if tesseract is not installed)
 
 ### Line Style
+
 - `*`: Toggle between solid and dashed lines
 
 ### Shift Modifiers
+
 - Hold `Shift` while drawing a rectangle or circle to fill with a translucent color
 - Hold `Shift` while drawing an arrow to draw freehand with an arrowhead at the end
 
 ### Pen Thickness
+
 - `+`: Increase pen thickness
 - `-`: Decrease pen thickness
 - `0`: Reset to default thickness
 - Also works with numpad `+`, `-`, and `0`
 
 ### Other
+
 - `n`: Add numbered step counter
 - `ESC`: Exit zPen
 
@@ -117,8 +123,7 @@ Pre-built `.deb` packages are published on the [GitHub Releases](https://github.
 **Install the latest release:**
 
 ```bash
-curl -LO https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb
-sudo apt install ./zpen_latest_amd64.deb
+curl -LO https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb | sudo apt install ./zpen_latest_amd64.deb
 ```
 
 The URL above is a permanent redirect — it always resolves to the most recent release. To pin to a specific version, browse the [Releases page](https://github.com/mazoqui/zpen/releases) and grab the versioned `zpen_X.Y.Z-1_amd64.deb` instead.
@@ -136,15 +141,18 @@ sudo apt remove zpen
 For non-Debian distros, or if you want to hack on zpen, see the [build dependencies](#system-requirements-build-from-source) below for what to install first, then:
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/mazoqui/zpen.git
    cd zpen
    ```
 
 2. **Compile:**
+
    ```bash
    make
    ```
+
    (or, manually: `gcc -o zpen src/zpen.c -lX11 -lXrender -lm`)
 
 3. **Run:**
@@ -173,6 +181,7 @@ Only relevant if you're building from source or packaging for a different distro
 ### Install build dependencies
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt install build-essential libx11-dev libxrender-dev xclip
 # Optional, for the `o` (OCR) shortcut:
@@ -180,6 +189,7 @@ sudo apt install tesseract-ocr
 ```
 
 **Fedora/CentOS/RHEL:**
+
 ```bash
 sudo dnf install gcc make libX11-devel libXrender-devel xclip
 # Optional, for the `o` (OCR) shortcut:
@@ -187,6 +197,7 @@ sudo dnf install tesseract
 ```
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -S base-devel libx11 libxrender xclip
 # Optional, for the `o` (OCR) shortcut:
@@ -200,11 +211,13 @@ sudo pacman -S tesseract tesseract-data-eng
 You can set up global keyboard shortcuts to launch zPen quickly. The commands below assume `zpen` is on your `$PATH` — true for both the `.deb` install (`/usr/bin/zpen`) and a source install with the default `make install` (`/usr/local/bin/zpen`).
 
 **XFCE:**
+
 ```bash
 xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>p' -s zpen
 ```
 
 **Cinnamon (Linux Mint):**
+
 ```bash
 dconf write /org/cinnamon/desktop/keybindings/custom-list "['custom0']"
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/command "'zpen'"
@@ -213,6 +226,7 @@ dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding
 ```
 
 **GNOME:**
+
 ```bash
 gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ name 'zPen Drawing Tool'
@@ -221,6 +235,7 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/or
 ```
 
 ### Direction Detection
+
 - **Curly Braces (`{`)**: Drag left-to-right for `{`, drag right-to-left for `}`
 - **Square Brackets (`[`)**: Drag left-to-right for `[`, drag right-to-left for `]`
 
@@ -237,6 +252,7 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/or
 Screenshots are automatically saved in the `~/.zpen` directory with timestamp-based filenames in the format `imgYYYYMMDDHHMMSS.png`. The directory is created automatically if it doesn't exist.
 
 **Example files:**
+
 - `~/.zpen/img20241201143052.png` - Screenshot taken on Dec 1, 2024 at 14:30:52
 
 ### File Formats
@@ -247,12 +263,14 @@ Screenshots are automatically saved in the `~/.zpen` directory with timestamp-ba
 ## Technical Details
 
 ### Architecture
+
 - **Single-file C application** using Xlib for X11 integration
 - **Fullscreen transparent overlay** that doesn't interfere with desktop interaction
 - **Memory-efficient** with minimal system resource usage
 - **Real-time drawing** with XOR graphics for smooth preview
 
 ### Performance Features
+
 - **Path smoothing** for freehand drawing with configurable smoothing levels
 - **Efficient undo system** using pixmap snapshots (up to 20 levels)
 - **Minimal latency** for responsive drawing experience
@@ -262,19 +280,23 @@ Screenshots are automatically saved in the `~/.zpen` directory with timestamp-ba
 ### Common Issues
 
 **"Cannot open display" error:**
+
 - Ensure you're running on a system with X11 (not Wayland-only)
 - Check if `$DISPLAY` environment variable is set: `echo $DISPLAY`
 
 **Missing libraries error:**
+
 - Install X11 development packages: `sudo apt install libx11-dev`
 
 **Permission issues with screenshots:**
+
 - Ensure `~/.zpen` directory has write permissions
 - Check that `xclip` is installed for clipboard functionality
 
 ### Wayland Compatibility
 
 zPen currently requires X11 and may not work on pure Wayland systems. For Wayland users:
+
 - Use XWayland compatibility layer
 - Consider running in X11 session for full functionality
 
@@ -365,37 +387,37 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 ## Quick Reference
 
-| Category | Key | Function |
-|----------|-----|----------|
-| **Drawing** | `p` | Pen (freehand) |
-| | `l` | Line |
-| | `a` | Arrow |
-| | `r` | Rectangle (toggle rounded/straight) |
-| | `c` | Circle |
-| | `{` | Curly braces `{` `}` |
-| | `[` | Square brackets `[` `]` |
-| | `b` | Blur brush |
-| | `t` | Text input |
-| **Colors** | `Space` | Next color (9 total) |
-| | `←` `→` | Navigate colors |
-| | | *Colors: red, green, blue, yellow, orange, white, magenta, pink, gray* |
-| **Style** | `*` | Toggle solid/dashed lines |
-| | `Shift`+draw | Fill rectangle/circle with translucent color |
-| | `Shift`+draw | Freehand arrow (with Arrow tool) |
-| **Thickness** | `+` | Increase pen thickness |
-| | `-` | Decrease pen thickness |
-| | `0` | Reset to default thickness |
-| **Actions** | `Ctrl+Z` | Undo |
-| | `Shift+Ctrl+Z` | Redo |
-| | `u` | Undo (legacy) |
-| | `n` | Add number |
-| **Screenshot** | `s` | Copy to clipboard & exit |
-| | `f` | Save to file |
-| | `Ctrl+C` | Copy to clipboard (no exit) |
-| | `o` | OCR region & copy text to clipboard (requires `tesseract`) |
-| **Clipboard** | `Ctrl+V` | Paste image at cursor |
-| **System** | `ESC` | Exit |
-| | `LShift+LAlt+p` | Swap focus between zPen and applications below |
+| Category       | Key             | Function                                                               |
+| -------------- | --------------- | ---------------------------------------------------------------------- |
+| **Drawing**    | `p`             | Pen (freehand)                                                         |
+|                | `l`             | Line                                                                   |
+|                | `a`             | Arrow                                                                  |
+|                | `r`             | Rectangle (toggle rounded/straight)                                    |
+|                | `c`             | Circle                                                                 |
+|                | `{`             | Curly braces `{` `}`                                                   |
+|                | `[`             | Square brackets `[` `]`                                                |
+|                | `b`             | Blur brush                                                             |
+|                | `t`             | Text input                                                             |
+| **Colors**     | `Space`         | Next color (9 total)                                                   |
+|                | `←` `→`         | Navigate colors                                                        |
+|                |                 | _Colors: red, green, blue, yellow, orange, white, magenta, pink, gray_ |
+| **Style**      | `*`             | Toggle solid/dashed lines                                              |
+|                | `Shift`+draw    | Fill rectangle/circle with translucent color                           |
+|                | `Shift`+draw    | Freehand arrow (with Arrow tool)                                       |
+| **Thickness**  | `+`             | Increase pen thickness                                                 |
+|                | `-`             | Decrease pen thickness                                                 |
+|                | `0`             | Reset to default thickness                                             |
+| **Actions**    | `Ctrl+Z`        | Undo                                                                   |
+|                | `Shift+Ctrl+Z`  | Redo                                                                   |
+|                | `u`             | Undo (legacy)                                                          |
+|                | `n`             | Add number                                                             |
+| **Screenshot** | `s`             | Copy to clipboard & exit                                               |
+|                | `f`             | Save to file                                                           |
+|                | `Ctrl+C`        | Copy to clipboard (no exit)                                            |
+|                | `o`             | OCR region & copy text to clipboard (requires `tesseract`)             |
+| **Clipboard**  | `Ctrl+V`        | Paste image at cursor                                                  |
+| **System**     | `ESC`           | Exit                                                                   |
+|                | `LShift+LAlt+p` | Swap focus between zPen and applications below                         |
 
 ---
 
