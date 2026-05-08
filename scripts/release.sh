@@ -34,6 +34,14 @@ for tool in gh dpkg-buildpackage dpkg-parsechangelog git; do
     || { echo "ERROR: $tool not installed" >&2; exit 1; }
 done
 
+# Confirm gh is authenticated. Without this, the script would happily push the
+# tag and then fail at the very last step, leaving a tag on origin with no
+# matching Release object — you'd then need to recover by hand.
+if ! gh auth status >/dev/null 2>&1; then
+  echo "ERROR: gh is not authenticated. Run: gh auth login" >&2
+  exit 1
+fi
+
 # Reject modified tracked files; untracked is fine (the .deb only ships HEAD).
 if [[ -n "$(git status --porcelain | grep -v '^??' || true)" ]]; then
   echo "ERROR: working tree has uncommitted changes. Commit or stash first." >&2

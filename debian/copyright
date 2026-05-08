@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: zpen
 Upstream-Contact: Marco Aurélio Zoqui <marco@zoqui.com>
-Source: https://github.com/iuqozm/zpen
+Source: https://github.com/mazoqui/zpen
 
 Files: *
 Copyright: 2024 Marco Aurélio Zoqui

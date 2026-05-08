@@ -7,7 +7,7 @@ Build-Depends:
  libx11-dev,
  libxrender-dev,
 Standards-Version: 4.6.2
-Homepage: https://github.com/iuqozm/zpen
+Homepage: https://github.com/mazoqui/zpen
 Rules-Requires-Root: no
 
 Package: zpen

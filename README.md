@@ -149,11 +149,11 @@ sudo pacman -S tesseract tesseract-data-eng
 
 ### Debian / Ubuntu (recommended)
 
-Pre-built `.deb` packages are published on the [GitHub Releases](https://github.com/iuqozm/zpen/releases) page. The package installs the binary at `/usr/bin/zpen`, ships a manpage (`man zpen`), registers a desktop entry (zPen appears under **Graphics** in your app menu), and pulls in `xclip` automatically. `tesseract-ocr` is recommended and installed by default unless you opt out with `--no-install-recommends`.
+Pre-built `.deb` packages are published on the [GitHub Releases](https://github.com/mazoqui/zpen/releases) page. The package installs the binary at `/usr/bin/zpen`, ships a manpage (`man zpen`), registers a desktop entry (zPen appears under **Graphics** in your app menu), and pulls in `xclip` automatically. `tesseract-ocr` is recommended and installed by default unless you opt out with `--no-install-recommends`.
 
 ```bash
 # Replace X.Y.Z with the version you want
-curl -LO https://github.com/iuqozm/zpen/releases/download/vX.Y.Z/zpen_X.Y.Z-1_amd64.deb
+curl -LO https://github.com/mazoqui/zpen/releases/download/vX.Y.Z/zpen_X.Y.Z-1_amd64.deb
 sudo apt install ./zpen_X.Y.Z-1_amd64.deb
 ```
 
@@ -318,7 +318,7 @@ The build is dh-based and uses the standard Debian hardening flags (`-fstack-pro
 
 ### Cutting a release
 
-Releases are published to [GitHub Releases](https://github.com/iuqozm/zpen/releases) with the `.deb` attached. The version source-of-truth is `debian/changelog`.
+Releases are published to [GitHub Releases](https://github.com/mazoqui/zpen/releases) with the `.deb` attached. The version source-of-truth is `debian/changelog`.
 
 **Prerequisites** (one-time):
 
