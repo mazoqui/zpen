@@ -2,7 +2,7 @@
 
 **zPen** is a powerful fullscreen drawing overlay tool for Linux systems written in C using Xlib. It creates a transparent drawing layer over your desktop, allowing you to annotate, sketch, and highlight anything on your screen. Perfect for presentations, tutorials, code reviews, and quick visual communication.
 
-![zPen Demo](https://img.shields.io/badge/Language-C-blue) ![Platform](https://img.shields.io/badge/Platform-Linux-green) ![License](https://img.shields.io/badge/License-MIT-red)
+[![Latest release](https://img.shields.io/github/v/release/mazoqui/zpen?label=latest&color=brightgreen)](https://github.com/mazoqui/zpen/releases/latest) ![Language](https://img.shields.io/badge/Language-C-blue) ![Platform](https://img.shields.io/badge/Platform-Linux-green) ![License](https://img.shields.io/badge/License-MIT-red)
 ## Features
 
 - **Drawing Tools:**
@@ -114,11 +114,14 @@
 
 Pre-built `.deb` packages are published on the [GitHub Releases](https://github.com/mazoqui/zpen/releases) page. `apt` resolves all runtime dependencies for you — there's nothing else to install.
 
+**Install the latest release:**
+
 ```bash
-# Replace X.Y.Z with the version you want
-curl -LO https://github.com/mazoqui/zpen/releases/download/vX.Y.Z/zpen_X.Y.Z-1_amd64.deb
-sudo apt install ./zpen_X.Y.Z-1_amd64.deb
+curl -LO https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb
+sudo apt install ./zpen_latest_amd64.deb
 ```
+
+The URL above is a permanent redirect — it always resolves to the most recent release. To pin to a specific version, browse the [Releases page](https://github.com/mazoqui/zpen/releases) and grab the versioned `zpen_X.Y.Z-1_amd64.deb` instead.
 
 The package installs the binary at `/usr/bin/zpen`, ships a manpage (`man zpen`), and registers a desktop entry (zPen appears under **Graphics** in your app menu). `xclip` is pulled in automatically; `tesseract-ocr` is recommended and installed by default unless you opt out with `--no-install-recommends`.
 

@@ -56,6 +56,10 @@ TAG="v${UPSTREAM_VERSION}"
 ARCH=$(dpkg --print-architecture)
 DEB_NAME="zpen_${PKG_VERSION}_${ARCH}.deb"
 DEB_PATH="../${DEB_NAME}"
+# Stable-named copy for the GitHub "latest release" redirect URL. Lets the
+# README ship one permanent link that always resolves to the newest .deb.
+DEB_LATEST_NAME="zpen_latest_${ARCH}.deb"
+DEB_LATEST_PATH="../${DEB_LATEST_NAME}"
 
 # Pull the body of the latest changelog entry — everything between the
 # `zpen (...)` header and the ` -- maintainer` trailer.
@@ -95,7 +99,9 @@ make clean >/dev/null
 dpkg-buildpackage -us -uc -b
 [[ -f "${DEB_PATH}" ]] \
   || { echo "ERROR: build did not produce ${DEB_PATH}" >&2; exit 1; }
+cp -f "${DEB_PATH}" "${DEB_LATEST_PATH}"
 echo "Built: ${DEB_PATH}"
+echo "       ${DEB_LATEST_PATH} (stable alias)"
 
 if (( DRY_RUN )); then
   echo
@@ -113,7 +119,7 @@ fi
 git tag -a "${TAG}" -m "zPen ${UPSTREAM_VERSION}"
 git push origin "${TAG}"
 
-gh release create "${TAG}" "${DEB_PATH}" \
+gh release create "${TAG}" "${DEB_PATH}" "${DEB_LATEST_PATH}" \
   --title "zPen ${UPSTREAM_VERSION}" \
   --notes "${NOTES}"
 
