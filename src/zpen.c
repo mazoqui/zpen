@@ -30,6 +30,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <pwd.h>
 #include <unistd.h>
@@ -87,66 +89,28 @@ void signal_handler(int sig)
   exit(0);
 }
 
-int convert_ppm_to_png(const char *ppm_path, const char *png_path)
+/**
+ * Run a child process with argv built from a NULL-terminated arg list.
+ * Avoids /bin/sh and shell metacharacter interpretation in arguments.
+ * Returns the child exit status (as from waitpid) or -1 on fork failure.
+ */
+static int spawn_wait(const char *argv[])
 {
-  FILE *file = fopen(ppm_path, "rb");
-  if (!file)
+  pid_t pid = fork();
+  if (pid == -1)
+    return -1;
+  if (pid == 0)
   {
-    printf("Error opening PPM file: %s\n", ppm_path);
-    return 0;
+    execvp(argv[0], (char *const *)argv);
+    _exit(127);
   }
-
-  // Read PPM Header
-  char format[3];
-  int width, height, maxval;
-  if (fscanf(file, "%2s\n%d %d\n%d\n", format, &width, &height, &maxval) != 4)
+  int status = 0;
+  while (waitpid(pid, &status, 0) == -1)
   {
-    printf("Error reading PPM file header.\n");
-    fclose(file);
-    return 0;
+    if (errno != EINTR)
+      return -1;
   }
-  if (format[0] != 'P' || format[1] != '6')
-  {
-    printf("Invalid PPM format. Only P6 is supported.\n");
-    fclose(file);
-    return 0;
-  }
-  if (maxval != 255)
-  {
-    printf("Unsupported max value: %d. Only images with maxval=255 are supported.\n", maxval);
-    fclose(file);
-    return 0;
-  }
-
-  // Allocate memory for image data
-  int channels = 3; // RGB
-  size_t image_size = width * height * channels;
-  unsigned char *data = (unsigned char *)malloc(image_size);
-  if (!data)
-  {
-    printf("Error allocating memory for image data.\n");
-    fclose(file);
-    return 0;
-  }
-
-  // Read image data
-  if (fread(data, 1, image_size, file) != image_size)
-  {
-    printf("Error reading image data.\n");
-    free(data);
-    fclose(file);
-    return 0;
-  }
-  fclose(file);
-
-  // Write the image in PNG format
-  if (!stbi_write_png(png_path, width, height, channels, data, width * channels))
-  {
-    printf("Error saving PNG file: %s\n", png_path);
-  }
-
-  free(data);
-  return 1;
+  return status;
 }
 
 /**
@@ -224,6 +188,18 @@ int hasTesseract(void)
  * Run tesseract OCR on a PNG file and copy the extracted text to the clipboard.
  * Returns 1 on success, 0 on failure.
  */
+/**
+ * Pick a directory for short-lived temp files. Prefers $XDG_RUNTIME_DIR
+ * (per-user, mode 0700) and falls back to /tmp.
+ */
+static const char *tmp_dir(void)
+{
+  const char *d = getenv("XDG_RUNTIME_DIR");
+  if (d && *d && access(d, W_OK) == 0)
+    return d;
+  return "/tmp";
+}
+
 int runTesseractOCR(const char *image_path)
 {
   if (!hasTesseract())
@@ -233,9 +209,7 @@ int runTesseractOCR(const char *image_path)
   }
 
   // Tesseract works best around 300 DPI. Screen captures are ~96 DPI, so
-  // upscale ~3x with nearest-neighbor before OCR — this dramatically
-  // improves accuracy on small/antialiased screen text.
-  const char *ocr_input = "/tmp/zpen_ocr_in.png";
+  // upscale ~3x with nearest-neighbor before OCR.
   int iw, ih, ic;
   unsigned char *src = stbi_load(image_path, &iw, &ih, &ic, 0);
   if (!src)
@@ -243,10 +217,29 @@ int runTesseractOCR(const char *image_path)
     fprintf(stderr, "OCR: failed to load %s\n", image_path);
     return 0;
   }
+  if (iw <= 0 || ih <= 0 || ic <= 0 || ic > 4)
+  {
+    stbi_image_free(src);
+    fprintf(stderr, "OCR: invalid image.\n");
+    return 0;
+  }
   const int scale = 3;
-  size_t ow = (size_t)iw * scale;
-  size_t oh = (size_t)ih * scale;
-  unsigned char *dst = (unsigned char *)malloc(ow * oh * (size_t)ic);
+  if ((size_t)iw > SIZE_MAX / (size_t)scale ||
+      (size_t)ih > SIZE_MAX / (size_t)scale)
+  {
+    stbi_image_free(src);
+    fprintf(stderr, "OCR: image too large to upscale.\n");
+    return 0;
+  }
+  size_t ow = (size_t)iw * (size_t)scale;
+  size_t oh = (size_t)ih * (size_t)scale;
+  if (oh != 0 && ow > SIZE_MAX / (size_t)ic / oh)
+  {
+    stbi_image_free(src);
+    fprintf(stderr, "OCR: image too large to upscale.\n");
+    return 0;
+  }
+  unsigned char *dst = malloc(ow * oh * (size_t)ic);
   if (!dst)
   {
     stbi_image_free(src);
@@ -264,34 +257,93 @@ int runTesseractOCR(const char *image_path)
     }
   }
   stbi_image_free(src);
-  int wrote = stbi_write_png(ocr_input, (int)ow, (int)oh, ic, dst, (int)(ow * (size_t)ic));
+
+  // Secure temp file for the upscaled input image. mkstemp creates with
+  // mode 0600 in O_EXCL mode, so symlink and race-replacement attacks fail.
+  char in_path[1024];
+  snprintf(in_path, sizeof(in_path), "%s/zpen-ocr-XXXXXX", tmp_dir());
+  int in_fd = mkstemp(in_path);
+  if (in_fd == -1)
+  {
+    free(dst);
+    fprintf(stderr, "OCR: failed to create temp file: %s\n", strerror(errno));
+    return 0;
+  }
+  close(in_fd);
+  int wrote = stbi_write_png(in_path, (int)ow, (int)oh, ic, dst, (int)(ow * (size_t)ic));
   free(dst);
   if (!wrote)
   {
+    unlink(in_path);
     fprintf(stderr, "OCR: failed to write upscaled input.\n");
     return 0;
   }
 
-  const char *out_base = "/tmp/zpen_ocr";
-  const char *out_txt = "/tmp/zpen_ocr.txt";
+  // Pipe `tesseract <in> stdout` into `xclip ...` so the recognized text
+  // never lands on disk. Both children are spawned with execvp (no shell).
+  int pipefd[2];
+  if (pipe(pipefd) == -1)
+  {
+    unlink(in_path);
+    fprintf(stderr, "OCR: pipe() failed: %s\n", strerror(errno));
+    return 0;
+  }
 
-  // --psm 6: treat the region as a single uniform block of text.
-  char command[2048];
-  snprintf(command, sizeof(command),
-           "tesseract \"%s\" \"%s\" --psm 6 2>/dev/null", ocr_input, out_base);
-  int rc = system(command);
-  remove(ocr_input);
-  if (rc != 0)
+  pid_t tess_pid = fork();
+  if (tess_pid == -1)
+  {
+    close(pipefd[0]);
+    close(pipefd[1]);
+    unlink(in_path);
+    return 0;
+  }
+  if (tess_pid == 0)
+  {
+    dup2(pipefd[1], STDOUT_FILENO);
+    close(pipefd[0]);
+    close(pipefd[1]);
+    int devnull = open("/dev/null", O_WRONLY);
+    if (devnull != -1)
+    {
+      dup2(devnull, STDERR_FILENO);
+      close(devnull);
+    }
+    execlp("tesseract", "tesseract", in_path, "stdout", "--psm", "6", (char *)NULL);
+    _exit(127);
+  }
+
+  pid_t xclip_pid = fork();
+  if (xclip_pid == -1)
+  {
+    close(pipefd[0]);
+    close(pipefd[1]);
+    waitpid(tess_pid, NULL, 0);
+    unlink(in_path);
+    return 0;
+  }
+  if (xclip_pid == 0)
+  {
+    dup2(pipefd[0], STDIN_FILENO);
+    close(pipefd[0]);
+    close(pipefd[1]);
+    execlp("xclip", "xclip", "-selection", "clipboard", "-t", "text/plain", (char *)NULL);
+    _exit(127);
+  }
+
+  close(pipefd[0]);
+  close(pipefd[1]);
+
+  int tess_status = 0, xclip_status = 0;
+  while (waitpid(tess_pid, &tess_status, 0) == -1 && errno == EINTR) {}
+  while (waitpid(xclip_pid, &xclip_status, 0) == -1 && errno == EINTR) {}
+  unlink(in_path);
+
+  if (!WIFEXITED(tess_status) || WEXITSTATUS(tess_status) != 0)
   {
     fprintf(stderr, "Tesseract OCR failed.\n");
     return 0;
   }
-
-  snprintf(command, sizeof(command),
-           "xclip -selection clipboard -t text/plain -i \"%s\"", out_txt);
-  int result = system(command);
-  remove(out_txt);
-  if (result != 0)
+  if (!WIFEXITED(xclip_status) || WEXITSTATUS(xclip_status) != 0)
   {
     fprintf(stderr, "Failed to copy OCR text to clipboard.\n");
     return 0;
@@ -309,43 +361,54 @@ clipMode controls how the resulting PNG is shared:
 */
 void saveScreenshotFile(XImage *image, int clipMode)
 {
-  // Ensures the ~/.zpen directory exists
   if (ensure_zpen_directory() == -1)
   {
     fprintf(stderr, "Failed to create or access .zpen directory\n");
     return;
   }
-  // Save first to temporary PPM file
-  FILE *f = fopen("/tmp/screenshot.ppm", "wb");
-  if (f == NULL)
+
+  if (image->width <= 0 || image->height <= 0)
   {
-    fprintf(stderr, "Failed to open temporary file for writing.\n");
+    fprintf(stderr, "Invalid screenshot dimensions: %dx%d\n", image->width, image->height);
     return;
   }
-  fprintf(f, "P6\n%d %d\n255\n", image->width, image->height);
+
+  // Overflow-safe size: w * h * 3 fits in size_t
+  size_t w = (size_t)image->width;
+  size_t h = (size_t)image->height;
+  if (h != 0 && w > SIZE_MAX / 3 / h)
+  {
+    fprintf(stderr, "Screenshot too large to encode.\n");
+    return;
+  }
+  size_t row = w * 3;
+  size_t img_size = row * h;
+  unsigned char *data = malloc(img_size);
+  if (!data)
+  {
+    fprintf(stderr, "Out of memory for screenshot.\n");
+    return;
+  }
   for (int y = 0; y < image->height; y++)
   {
     for (int x = 0; x < image->width; x++)
     {
-      int pixel = XGetPixel(image, x, y);
-      unsigned char red = (pixel & image->red_mask) >> 16;
-      unsigned char green = (pixel & image->green_mask) >> 8;
-      unsigned char blue = pixel & image->blue_mask;
-
-      fputc(red, f);
-      fputc(green, f);
-      fputc(blue, f);
+      unsigned long pixel = XGetPixel(image, x, y);
+      size_t off = ((size_t)y * w + (size_t)x) * 3;
+      data[off + 0] = (pixel & image->red_mask) >> 16;
+      data[off + 1] = (pixel & image->green_mask) >> 8;
+      data[off + 2] = pixel & image->blue_mask;
     }
   }
-  fclose(f);
-  // Save as png (jpeg will be used in future. right now xclip does not support it)
+
   time_t t = time(NULL);
   struct tm tm = *localtime(&t);
   char filename[1024];
   const char *home = getenv("HOME");
   if (!home)
   {
-    printf("Error: Could not get HOME directory.\n");
+    fprintf(stderr, "Error: Could not get HOME directory.\n");
+    free(data);
     return;
   }
   snprintf(filename, sizeof(filename), "%s/.zpen/img%04d%02d%02d%02d%02d%02d.png",
@@ -353,21 +416,22 @@ void saveScreenshotFile(XImage *image, int clipMode)
            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
            tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-  if (!convert_ppm_to_png("/tmp/screenshot.ppm", filename))
+  int wrote = stbi_write_png(filename, image->width, image->height, 3,
+                             data, (int)row);
+  free(data);
+  if (!wrote)
   {
-    printf("PPM file to JPEG conversion failed.\n");
+    fprintf(stderr, "Failed to save PNG: %s\n", filename);
+    return;
   }
-  remove("/tmp/screenshot.ppm"); // Clean the temporary file
+
   if (clipMode == 1)
   {
-    // Increase buffer size to accommodate long filenames
-    char command[1100]; // Increased from 200 to 1100 bytes
-    snprintf(command, sizeof(command), "xclip -selection clipboard -t image/png -i \"%s\"", filename);
-    int result = system(command);
-    if (result == -1)
-    {
-      perror("Something went wrong with xclip call");
-    }
+    const char *argv[] = {
+        "xclip", "-selection", "clipboard", "-t", "image/png", "-i", filename, NULL};
+    int status = spawn_wait(argv);
+    if (status == -1 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+      fprintf(stderr, "xclip failed to copy image to clipboard.\n");
   }
   else if (clipMode == 2)
   {
@@ -419,27 +483,83 @@ void saveScreenshot(Display *d, Window w, int screen, int x0, int y0, int x1, in
 
 void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x, int mouse_y, unsigned int win_width, unsigned int win_height)
 {
-  // Save clipboard image to temp file using xclip
-  int result = system("xclip -selection clipboard -t image/png -o > /tmp/zpen_paste.png 2>/dev/null");
-  if (result != 0)
+  // Receive xclip output into a secure temp file (no shell, no fixed path).
+  char tmp_path[1024];
+  snprintf(tmp_path, sizeof(tmp_path), "%s/zpen-paste-XXXXXX", tmp_dir());
+  int tmp_fd = mkstemp(tmp_path);
+  if (tmp_fd == -1)
   {
-    fprintf(stderr, "No image in clipboard or xclip failed\n");
+    fprintf(stderr, "Paste: failed to create temp file: %s\n", strerror(errno));
     return;
   }
 
-  // Load the PNG image using stb_image
+  pid_t pid = fork();
+  if (pid == -1)
+  {
+    close(tmp_fd);
+    unlink(tmp_path);
+    return;
+  }
+  if (pid == 0)
+  {
+    dup2(tmp_fd, STDOUT_FILENO);
+    close(tmp_fd);
+    int devnull = open("/dev/null", O_WRONLY);
+    if (devnull != -1)
+    {
+      dup2(devnull, STDERR_FILENO);
+      close(devnull);
+    }
+    execlp("xclip", "xclip", "-selection", "clipboard", "-t", "image/png", "-o", (char *)NULL);
+    _exit(127);
+  }
+  close(tmp_fd);
+  int status = 0;
+  while (waitpid(pid, &status, 0) == -1 && errno == EINTR) {}
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+  {
+    fprintf(stderr, "No image in clipboard or xclip failed\n");
+    unlink(tmp_path);
+    return;
+  }
+
+  // Load the PNG image using stb_image (force RGBA)
   int img_w, img_h, channels;
-  unsigned char *data = stbi_load("/tmp/zpen_paste.png", &img_w, &img_h, &channels, 4); // Force RGBA
+  unsigned char *data = stbi_load(tmp_path, &img_w, &img_h, &channels, 4);
+  unlink(tmp_path);
   if (!data)
   {
     fprintf(stderr, "Failed to load clipboard image\n");
-    remove("/tmp/zpen_paste.png");
+    return;
+  }
+
+  // Bound dimensions before allocating; rejects malformed PNGs that would
+  // demand absurd memory.
+  const int MAX_PASTE_DIM = 8192;
+  if (img_w <= 0 || img_h <= 0 || img_w > MAX_PASTE_DIM || img_h > MAX_PASTE_DIM)
+  {
+    fprintf(stderr, "Pasted image dimensions out of range: %dx%d\n", img_w, img_h);
+    stbi_image_free(data);
     return;
   }
 
   // Create XImage from loaded data
   XImage *img = XCreateImage(d, vinfo->visual, 32, ZPixmap, 0, NULL, img_w, img_h, 32, 0);
-  img->data = malloc(img->bytes_per_line * img_h);
+  if (!img)
+  {
+    fprintf(stderr, "Paste: XCreateImage failed\n");
+    stbi_image_free(data);
+    return;
+  }
+  size_t img_data_size = (size_t)img->bytes_per_line * (size_t)img_h;
+  img->data = malloc(img_data_size);
+  if (!img->data)
+  {
+    fprintf(stderr, "Paste: out of memory\n");
+    XDestroyImage(img);
+    stbi_image_free(data);
+    return;
+  }
 
   for (int y = 0; y < img_h; y++)
   {
@@ -506,7 +626,6 @@ void pasteClipboard(Display *d, Window w, GC gc, XVisualInfo *vinfo, int mouse_x
 
   XDestroyImage(img); // This also frees img->data
   stbi_image_free(data);
-  remove("/tmp/zpen_paste.png");
   XFlush(d);
 }
 
@@ -1906,12 +2025,15 @@ int main()
         else if (e.xkey.keycode == 57)
         {
           XFontStruct *ft = XLoadQueryFont(d, FONT);
-          XSetFont(d, gc, ft->fid);
+          if (ft)
+            XSetFont(d, gc, ft->fid);
           char s[4] = {'(', stepCnt + '0', ')', '\0'};
           stepCnt++;
           if (stepCnt >= 9)
             stepCnt = 0;
           XDrawString(d, w, gc, e.xbutton.x, e.xbutton.y, s, strlen(s));
+          if (ft)
+            XFreeFont(d, ft);
         }
         else if ((e.xkey.state & ControlMask) && (e.xkey.state & ShiftMask) &&
                  (e.xkey.keycode == 52 || e.xkey.keycode == 29))
