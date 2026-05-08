@@ -108,54 +108,19 @@
 - `n`: Add numbered step counter
 - `ESC`: Exit zPen
 
-## System Requirements
-
-- **Operating System**: Linux with X Window System (X11)
-- **Dependencies**:
-  - `libx11-dev` - X11 development libraries
-  - `libxrender-dev` - XRender extension (translucent fills)
-  - `xclip` - Clipboard management (usually pre-installed)
-  - `gcc` - C compiler
-  - `make` (optional, for build automation)
-  - compositor like `picom` that supports transparency
-  - `tesseract-ocr` - **Optional**, only required for the `o` (OCR to clipboard) shortcut
-
-### Install Dependencies
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install libx11-dev libxrender-dev xclip build-essential
-# Optional, for the `o` (OCR) shortcut:
-sudo apt install tesseract-ocr
-```
-
-**Fedora/CentOS/RHEL:**
-```bash
-sudo dnf install libX11-devel libXrender-devel xclip gcc
-# or for older versions:
-sudo yum install libX11-devel libXrender-devel xclip gcc
-# Optional, for the `o` (OCR) shortcut:
-sudo dnf install tesseract
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S libx11 libxrender xclip gcc
-# Optional, for the `o` (OCR) shortcut:
-sudo pacman -S tesseract tesseract-data-eng
-```
-
 ## Installation
 
 ### Debian / Ubuntu (recommended)
 
-Pre-built `.deb` packages are published on the [GitHub Releases](https://github.com/mazoqui/zpen/releases) page. The package installs the binary at `/usr/bin/zpen`, ships a manpage (`man zpen`), registers a desktop entry (zPen appears under **Graphics** in your app menu), and pulls in `xclip` automatically. `tesseract-ocr` is recommended and installed by default unless you opt out with `--no-install-recommends`.
+Pre-built `.deb` packages are published on the [GitHub Releases](https://github.com/mazoqui/zpen/releases) page. `apt` resolves all runtime dependencies for you — there's nothing else to install.
 
 ```bash
 # Replace X.Y.Z with the version you want
 curl -LO https://github.com/mazoqui/zpen/releases/download/vX.Y.Z/zpen_X.Y.Z-1_amd64.deb
 sudo apt install ./zpen_X.Y.Z-1_amd64.deb
 ```
+
+The package installs the binary at `/usr/bin/zpen`, ships a manpage (`man zpen`), and registers a desktop entry (zPen appears under **Graphics** in your app menu). `xclip` is pulled in automatically; `tesseract-ocr` is recommended and installed by default unless you opt out with `--no-install-recommends`.
 
 To uninstall:
 
@@ -165,9 +130,11 @@ sudo apt remove zpen
 
 ### Build from source
 
+For non-Debian distros, or if you want to hack on zpen, see the [build dependencies](#system-requirements-build-from-source) below for what to install first, then:
+
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/mazoqui/zpen.git
    cd zpen
    ```
 
@@ -188,6 +155,39 @@ sudo apt remove zpen
 sudo make install PREFIX=/usr/local
 # Now you can run zPen from anywhere
 zpen
+```
+
+## System Requirements (build from source)
+
+Only relevant if you're building from source or packaging for a different distro. Users installing the `.deb` get all dependencies via `apt`.
+
+- **Operating System**: Linux with X Window System (X11)
+- **Build tools**: `gcc`, `make`
+- **Libraries**: X11 + XRender development headers
+- **Runtime**: `xclip` for clipboard operations, a compositor like `picom` for transparency
+- **Optional runtime**: `tesseract-ocr` for the `o` (OCR to clipboard) shortcut
+
+### Install build dependencies
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install build-essential libx11-dev libxrender-dev xclip
+# Optional, for the `o` (OCR) shortcut:
+sudo apt install tesseract-ocr
+```
+
+**Fedora/CentOS/RHEL:**
+```bash
+sudo dnf install gcc make libX11-devel libXrender-devel xclip
+# Optional, for the `o` (OCR) shortcut:
+sudo dnf install tesseract
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S base-devel libx11 libxrender xclip
+# Optional, for the `o` (OCR) shortcut:
+sudo pacman -S tesseract tesseract-data-eng
 ```
 
 ## Desktop Integration
