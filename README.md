@@ -147,7 +147,23 @@ sudo pacman -S tesseract tesseract-data-eng
 
 ## Installation
 
-### Quick Start
+### Debian / Ubuntu (recommended)
+
+Pre-built `.deb` packages are published on the [GitHub Releases](https://github.com/iuqozm/zpen/releases) page. The package installs the binary at `/usr/bin/zpen`, ships a manpage (`man zpen`), registers a desktop entry (zPen appears under **Graphics** in your app menu), and pulls in `xclip` automatically. `tesseract-ocr` is recommended and installed by default unless you opt out with `--no-install-recommends`.
+
+```bash
+# Replace X.Y.Z with the version you want
+curl -LO https://github.com/iuqozm/zpen/releases/download/vX.Y.Z/zpen_X.Y.Z-1_amd64.deb
+sudo apt install ./zpen_X.Y.Z-1_amd64.deb
+```
+
+To uninstall:
+
+```bash
+sudo apt remove zpen
+```
+
+### Build from source
 
 1. **Clone the repository:**
    ```bash
@@ -157,31 +173,19 @@ sudo pacman -S tesseract tesseract-data-eng
 
 2. **Compile:**
    ```bash
-   cd src
-   gcc zpen.c -o zpen -lX11 -lXrender -lm
-   ```
-   or
-   ```bash
    make
    ```
+   (or, manually: `gcc -o zpen src/zpen.c -lX11 -lXrender -lm`)
 
 3. **Run:**
    ```bash
-   ./zpen
+   ./dist/release_zpen
    ```
 
-### Global Installation (Optional)
-
-To install zPen system-wide:
+### Global installation from source
 
 ```bash
-# Compile
-cd src
-gcc zpen.c -o zpen -lX11 -lXrender -lm
-
-# Install to /usr/local/bin
-sudo cp zpen /usr/local/bin/
-
+sudo make install PREFIX=/usr/local
 # Now you can run zPen from anywhere
 zpen
 ```
@@ -285,14 +289,64 @@ Contributions are welcome! Please follow these guidelines:
 ```bash
 # Clone and setup development environment
 git clone <repository-url>
-cd zpen/src
+cd zpen
 
-# Compile with debug flags
-gcc -g -Wall -Wextra zpen.c -o zpen -lX11 -lm
+# Build release + debug binaries
+make
 
-# Run with debugging
-gdb ./zpen
+# Or build with extra warnings
+gcc -Wall -Wextra -o /tmp/zpen src/zpen.c -lX11 -lXrender -lm
+
+# Run under gdb
+make debug
 ```
+
+### Building the Debian package
+
+```bash
+# One-time: install packaging tools
+sudo apt install debhelper lintian devscripts
+
+# Build (outputs land in the parent directory)
+dpkg-buildpackage -us -uc -b
+
+# Optional: lint the result
+lintian ../zpen_0.1.0-1_amd64.deb
+```
+
+The build is dh-based and uses the standard Debian hardening flags (`-fstack-protector-strong`, `-D_FORTIFY_SOURCE=2`, `-Wl,-z,relro`, `-Wl,-z,now`).
+
+### Cutting a release
+
+Releases are published to [GitHub Releases](https://github.com/iuqozm/zpen/releases) with the `.deb` attached. The version source-of-truth is `debian/changelog`.
+
+**Prerequisites** (one-time):
+
+```bash
+sudo apt install debhelper lintian devscripts
+# Install the GitHub CLI: https://cli.github.com/
+gh auth login
+```
+
+**For each release:**
+
+```bash
+# 1. Bump the version. Use dch to add a new entry; -v sets the version
+#    (X.Y.Z-1 for the first packaging of upstream X.Y.Z), then -r finalises
+#    the date and distribution.
+dch -v 0.2.0-1 "Short summary."   # opens $EDITOR for the body
+dch -r ""                         # finalises (sets date + distribution)
+
+# 2. Commit the changelog bump.
+git add debian/changelog
+git commit -m "Release 0.2.0-1"
+git push
+
+# 3. Build, tag, push the tag, and publish the GitHub release.
+./scripts/release.sh
+```
+
+`scripts/release.sh` reads the new version from `debian/changelog`, builds the `.deb` with `dpkg-buildpackage`, prints the proposed tag and release notes for review, and only then tags `vX.Y.Z`, pushes the tag, and creates the GitHub release with the `.deb` attached. Pass `--dry-run` to see what it would do without tagging or publishing, or `--yes` to skip the interactive confirmation (handy in CI).
 
 ## License
 

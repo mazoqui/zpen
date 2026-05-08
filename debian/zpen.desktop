@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=zPen
+GenericName=Screen Annotation Tool
+Comment=Transparent fullscreen overlay for drawing on the desktop
+Exec=zpen
+Icon=applications-graphics
+Terminal=false
+StartupNotify=false
+Categories=Graphics;
+Keywords=annotation;drawing;screen;overlay;presentation;sketch;

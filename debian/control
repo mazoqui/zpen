@@ -1,0 +1,34 @@
+Source: zpen
+Section: graphics
+Priority: optional
+Maintainer: Marco Aurélio Zoqui <marco@zoqui.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ libx11-dev,
+ libxrender-dev,
+Standards-Version: 4.6.2
+Homepage: https://github.com/iuqozm/zpen
+Rules-Requires-Root: no
+
+Package: zpen
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ xclip,
+Recommends:
+ tesseract-ocr,
+Description: fullscreen transparent drawing overlay for X11
+ zPen creates a transparent fullscreen layer over the desktop, letting
+ you annotate, sketch, and highlight anything on screen. It supports
+ freehand pen strokes, lines, arrows, rectangles, circles, braces,
+ brackets, blur brush, text, numbered step markers, and on-the-fly
+ colour and thickness changes.
+ .
+ It can also capture screen regions to PNG (saved under ~/.zpen/) or
+ to the clipboard, paste images from the clipboard, and run OCR on a
+ selected region (requires tesseract-ocr) with the result copied to
+ the clipboard.
+ .
+ zPen targets X11 desktops with a compositor for transparency. Wayland
+ sessions can use it via XWayland.

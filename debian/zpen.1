@@ -1,0 +1,131 @@
+.TH ZPEN 1 "May 2026" "zpen 0.1.0" "User Commands"
+.SH NAME
+zpen \- fullscreen transparent drawing overlay for X11
+.SH SYNOPSIS
+.B zpen
+.SH DESCRIPTION
+.B zpen
+creates a transparent fullscreen layer over the desktop that lets you
+annotate, sketch, and highlight anything on screen. It is intended for
+presentations, tutorials, code reviews, and quick visual communication.
+.PP
+The overlay grabs keyboard focus on launch. Drawings are non-destructive
+and exist only in the overlay window; press
+.B Esc
+to dismiss it. zpen targets X11 desktops with a compositor for transparency;
+on Wayland it works through XWayland.
+.PP
+zpen requires the
+.BR xclip (1)
+helper for clipboard operations and
+optionally
+.BR tesseract (1)
+for OCR.
+.SH KEY BINDINGS
+.SS Drawing tools
+.TP
+.B p
+Pen \(em freehand drawing with smoothing.
+.TP
+.B l
+Straight line.
+.TP
+.B a
+Arrow. Hold
+.B Shift
+while drawing for a freehand path with an auto-oriented arrowhead.
+.TP
+.B r
+Rectangle. Press again to toggle rounded corners.
+.TP
+.B c
+Circle.
+.TP
+.B {
+Curly brace; direction is auto-detected (opening vs closing).
+.TP
+.B [
+Square bracket; direction is auto-detected.
+.TP
+.B b
+Blur brush.
+.TP
+.B t
+Text input. Type characters, press
+.B Esc
+to commit and exit text mode.
+.TP
+.B n
+Numbered step marker (auto-incrementing).
+.SS Style modifiers
+.TP
+.B Space \fRor\fB Right
+Next colour.
+.TP
+.B Left
+Previous colour.
+.TP
+.B +\fR / \fB-
+Increase / decrease pen thickness.
+.TP
+.B 0
+Reset pen thickness to default.
+.TP
+.B *
+Toggle solid / dashed line style.
+.TP
+.B Shift\fR + draw on rectangle/circle
+Translucent (~20%) fill of the active colour.
+.SS Screenshots and clipboard
+.TP
+.B f
+Select a region and save it to a PNG under
+.IR ~/.zpen/ .
+.TP
+.B s
+Select a region, copy it to the clipboard, and exit.
+.TP
+.B o
+Select a region, run OCR on it, and copy the recognised text to the
+clipboard. Requires
+.BR tesseract (1).
+.TP
+.B Ctrl+C
+Select a region and copy to clipboard without exiting.
+.TP
+.B Ctrl+V
+Paste a clipboard image at the mouse cursor.
+.SS Edit history
+.TP
+.B u\fR or \fBCtrl+Z
+Undo (up to 20 steps).
+.TP
+.B Ctrl+Shift+Z\fR or \fBCtrl+Shift+Y
+Redo.
+.SS Exit
+.TP
+.B Esc
+Quit zpen.
+.SH FILES
+.TP
+.I ~/.zpen/
+Created on first screenshot, mode 0700. Saved screenshots are written here
+as
+.IR imgYYYYMMDDHHMMSS.png .
+.SH ENVIRONMENT
+.TP
+.B XDG_RUNTIME_DIR
+If set and writable, used for short-lived temp files
+created during clipboard paste and OCR. Falls back to
+.IR /tmp .
+.TP
+.B HOME
+Used to locate
+.IR ~/.zpen/ .
+If unset, the location is read from
+.BR getpwuid (3).
+.SH SEE ALSO
+.BR xclip (1),
+.BR tesseract (1)
+.SH AUTHOR
+Marco Aur\['e]lio Zoqui <marco@zoqui.com>

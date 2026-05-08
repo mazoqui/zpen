@@ -1,0 +1,13 @@
+zpen (0.1.0-1) unstable; urgency=medium
+
+  * Initial Debian packaging.
+  * Hardened temp-file handling: removed predictable /tmp paths in screenshot,
+    paste, and OCR code paths; switched to mkstemp under XDG_RUNTIME_DIR.
+  * Replaced shell-invoking system() calls with fork/execvp for xclip and
+    tesseract integration.
+  * Eliminated PPM intermediate; PNG is now written directly from the X image
+    with overflow-safe size arithmetic.
+  * NULL-checked XLoadQueryFont to fix a SEGV when the helvetica bitmap font
+    is unavailable.
+
+ -- Marco Aurélio Zoqui <marco@zoqui.com>  Fri, 08 May 2026 12:00:00 +0000
