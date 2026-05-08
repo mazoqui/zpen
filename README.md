@@ -194,17 +194,17 @@ sudo pacman -S tesseract tesseract-data-eng
 
 ### Keyboard Shortcuts
 
-You can set up global keyboard shortcuts to launch zPen quickly:
+You can set up global keyboard shortcuts to launch zPen quickly. The commands below assume `zpen` is on your `$PATH` — true for both the `.deb` install (`/usr/bin/zpen`) and a source install with the default `make install` (`/usr/local/bin/zpen`).
 
 **XFCE:**
 ```bash
-xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>p' -s /usr/local/bin/zpen
+xfconf-query -c xfce4-keyboard-shortcuts -n -t 'string' -p '/commands/custom/<Super>p' -s zpen
 ```
 
 **Cinnamon (Linux Mint):**
 ```bash
 dconf write /org/cinnamon/desktop/keybindings/custom-list "['custom0']"
-dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/command "'/usr/local/bin/zpen'"
+dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/command "'zpen'"
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/name "'zPen Drawing Tool'"
 dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding "['<Super>p']"
 ```
@@ -213,7 +213,7 @@ dconf write /org/cinnamon/desktop/keybindings/custom-keybindings/custom0/binding
 ```bash
 gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ name 'zPen Drawing Tool'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ command '/usr/local/bin/zpen'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ command 'zpen'
 gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ binding '<Super>p'
 ```
 
