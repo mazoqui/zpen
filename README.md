@@ -57,7 +57,7 @@
   - **Text Input:** Add text annotations at any position on the screen.
 - **Screenshot & Clipboard:**
   - Capture a screen region and save as `.png` file or copy to clipboard.
-  - Copy a region to clipboard exiting (`s`).
+  - Copy a region to clipboard, and exit (`s`).
   - Copy a region to clipboard without exiting (`Ctrl+C`).
   - Paste images from clipboard directly onto the canvas (`Ctrl+V`).
   - OCR a region with `o` to copy the recognized text to the clipboard (requires `tesseract`).
