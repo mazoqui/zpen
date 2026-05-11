@@ -4,6 +4,45 @@
 
 [![Latest release](https://img.shields.io/github/v/release/mazoqui/zpen?label=latest&color=brightgreen)](https://github.com/mazoqui/zpen/releases/latest) ![Language](https://img.shields.io/badge/Language-C-blue) ![Platform](https://img.shields.io/badge/Platform-Linux-green) ![License](https://img.shields.io/badge/License-MIT-red)
 
+## Table of Contents
+
+- [Features](#features)
+- [Usage](#usage)
+  - [Drawing Tools](#drawing-tools)
+  - [Color Controls](#color-controls)
+  - [Undo/Redo](#undoredo)
+  - [Screenshot & Clipboard](#screenshot--clipboard)
+  - [Line Style](#line-style)
+  - [Shift Modifiers](#shift-modifiers)
+  - [Pen Thickness](#pen-thickness)
+  - [Other](#other)
+- [Installation](#installation)
+  - [Debian / Ubuntu (recommended)](#debian--ubuntu-recommended)
+  - [Build from source](#build-from-source)
+  - [Global installation from source](#global-installation-from-source)
+- [System Requirements (build from source)](#system-requirements-build-from-source)
+  - [Install build dependencies](#install-build-dependencies)
+- [Desktop Integration](#desktop-integration)
+  - [Keyboard Shortcuts](#keyboard-shortcuts)
+  - [Direction Detection](#direction-detection)
+  - [Mouse Controls](#mouse-controls)
+- [File Management](#file-management)
+  - [Screenshot Saving](#screenshot-saving)
+  - [File Formats](#file-formats)
+- [Technical Details](#technical-details)
+  - [Architecture](#architecture)
+  - [Performance Features](#performance-features)
+- [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Wayland Compatibility](#wayland-compatibility)
+- [Contributing](#contributing)
+  - [Development Setup](#development-setup)
+  - [Building the Debian package](#building-the-debian-package)
+  - [Cutting a release](#cutting-a-release)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+- [Quick Reference](#quick-reference)
+
 ## Features
 
 - **Drawing Tools:**
