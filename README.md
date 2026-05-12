@@ -163,7 +163,7 @@ Pre-built `.deb` packages are published on the [GitHub Releases](https://github.
 **Install the latest release:**
 
 ```bash
-curl -LO https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb | sudo apt install ./zpen_latest_amd64.deb
+cd /tmp && curl -LO https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb && sudo apt install ./zpen_latest_amd64.deb
 ```
 
 The URL above is a permanent redirect — it always resolves to the most recent release. To pin to a specific version, browse the [Releases page](https://github.com/mazoqui/zpen/releases) and grab the versioned `zpen_X.Y.Z-1_amd64.deb` instead.
