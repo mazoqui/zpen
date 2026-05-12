@@ -1,3 +1,10 @@
+zpen (0.1.4-1) unstable; urgency=medium
+
+  * Bound `}` and `]` to the curly brace and square bracket tools, mirroring
+    the existing `{` and `[` shortcuts.
+
+ -- Marco Aurélio Zoqui <marco@zoqui.com>  Tue, 12 May 2026 12:00:00 +0000
+
 zpen (0.1.3-1) unstable; urgency=medium
 
   * Initial Debian packaging.

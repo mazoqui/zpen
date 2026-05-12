@@ -109,8 +109,8 @@
   - `a`: Arrow (hold `Shift` for freehand arrow)
   - `r`: Rectangle (press again to toggle rounded/straight corners)
   - `c`: Circle
-  - `{`: Curly Braces `{` `}` (direction auto-detected by drag direction)
-  - `[`: Square Brackets `[` `]` (direction auto-detected by drag direction)
+  - `{` or `}`: Curly Braces `{` `}` (direction auto-detected by drag direction)
+  - `[` or `]`: Square Brackets `[` `]` (direction auto-detected by drag direction)
   - `b`: Blur brush (freehand blur to obscure areas)
   - `t`: Text input at cursor position
 
@@ -276,8 +276,8 @@ gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/or
 
 ### Direction Detection
 
-- **Curly Braces (`{`)**: Drag left-to-right for `{`, drag right-to-left for `}`
-- **Square Brackets (`[`)**: Drag left-to-right for `[`, drag right-to-left for `]`
+- **Curly Braces (`{` or `}`)**: Drag left-to-right for `{`, drag right-to-left for `}`
+- **Square Brackets (`[` or `]`)**: Drag left-to-right for `[`, drag right-to-left for `]`
 
 ### Mouse Controls
 
@@ -434,8 +434,8 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 |                | `a`             | Arrow                                                                  |
 |                | `r`             | Rectangle (toggle rounded/straight)                                    |
 |                | `c`             | Circle                                                                 |
-|                | `{`             | Curly braces `{` `}`                                                   |
-|                | `[`             | Square brackets `[` `]`                                                |
+|                | `{` or `}`      | Curly braces `{` `}`                                                   |
+|                | `[` or `]`      | Square brackets `[` `]`                                                |
 |                | `b`             | Blur brush                                                             |
 |                | `t`             | Text input                                                             |
 | **Colors**     | `Space`         | Next color (9 total)                                                   |

@@ -1902,7 +1902,7 @@ int main()
           p = 0;
           setShapeCursor(d, w, &cursor, shape);
         }
-        else if (klen == 1 && kbuf[0] == '{')
+        else if (klen == 1 && (kbuf[0] == '{' || kbuf[0] == '}'))
         {
           shape = '{';
           p = 0;
@@ -2016,7 +2016,7 @@ int main()
             XSetDashes(d, gc, 0, dash_pattern, 2);
           XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
         }
-        else if (klen == 1 && kbuf[0] == '[')
+        else if (klen == 1 && (kbuf[0] == '[' || kbuf[0] == ']'))
         {
           shape = '[';
           p = 0;
