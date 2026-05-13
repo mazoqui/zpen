@@ -47,6 +47,7 @@
 #define ARROW_DIRECTION_SAMPLES 10
 #define BLUR_RADIUS 1
 #define BLUR_BRUSH 18
+#define TEXT_FONT_SIZE 18
 // xlsfonts | grep courier
 // #define FONT "-*-*-*-*-*-*-60-*-*-*-*-*-iso8859-*"
 #define FONT "*-helvetica-*-18-*"
@@ -1059,6 +1060,25 @@ void bye(Display *d, Window w)
 }
 
 /**
+ * Create a fontset (helvetica, medium, roman) at the requested pixel size.
+ * Caller owns the result and must XFreeFontSet it.
+ */
+XFontSet createTextFontSet(Display *d, int size)
+{
+  char pattern[256];
+  snprintf(pattern, sizeof(pattern),
+           "-*-helvetica-medium-r-*-*-%d-*-*-*-*-*-*-*,-*-*-medium-r-*-*-%d-*-*-*-*-*-*-*",
+           size, size);
+  char **missing_list;
+  int missing_count;
+  char *default_string;
+  XFontSet fs = XCreateFontSet(d, pattern, &missing_list, &missing_count, &default_string);
+  if (missing_count > 0)
+    XFreeStringList(missing_list);
+  return fs;
+}
+
+/**
  * Draw text with a cursor at the end
  */
 void drawTextWithCursor(Display *d, Window w, GC gc, XFontSet fontset, int x, int y, const char *text, int cursor_height)
@@ -1363,14 +1383,9 @@ int main()
     }
   }
 
-  // Create fontset for UTF-8 text rendering
-  char **missing_list;
-  int missing_count;
-  char *default_string;
-  XFontSet fontset = XCreateFontSet(d, "-*-helvetica-medium-r-*-*-18-*-*-*-*-*-*-*,-*-*-medium-r-*-*-18-*-*-*-*-*-*-*",
-                                    &missing_list, &missing_count, &default_string);
-  if (missing_count > 0)
-    XFreeStringList(missing_list);
+  // Create fontset for UTF-8 text rendering (size is runtime-adjustable via Ctrl++/Ctrl+-/Ctrl+0)
+  int font_size = TEXT_FONT_SIZE;
+  XFontSet fontset = createTextFontSet(d, font_size);
 
   // Prepare undo/redo levels
   int maxUndo = 0;
@@ -1768,7 +1783,32 @@ int main()
         }
         ltext[n] = 0x00;
 
-        if (key == XK_Return || e.xkey.keycode == 104)
+        // Ctrl++/Ctrl+-/Ctrl+0 (and numpad variants): adjust or reset text font size
+        if ((e.xkey.state & ControlMask) &&
+            (e.xkey.keycode == 21 || e.xkey.keycode == 86 ||
+             e.xkey.keycode == 20 || e.xkey.keycode == 82 ||
+             e.xkey.keycode == 19 || e.xkey.keycode == 90))
+        {
+          int new_size;
+          if (e.xkey.keycode == 19 || e.xkey.keycode == 90)
+            new_size = TEXT_FONT_SIZE; // Ctrl+0: reset to default
+          else if (e.xkey.keycode == 21 || e.xkey.keycode == 86)
+            new_size = font_size + 2;
+          else
+            new_size = font_size - 2;
+          if (new_size >= 8 && new_size <= 72 && new_size != font_size)
+          {
+            font_size = new_size;
+            if (fontset)
+              XFreeFontSet(d, fontset);
+            fontset = createTextFontSet(d, font_size);
+            XClearWindow(d, w);
+            XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
+            drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, font_size);
+            XFlush(d);
+          }
+        }
+        else if (key == XK_Return || e.xkey.keycode == 104)
         {
           // Enter: commit current line and start new line below
           // First redraw without cursor to commit clean text
@@ -1779,9 +1819,9 @@ int main()
           XCopyArea(d, w, textPixMap, gc, 0, 0, width, height, 0, 0);
           l_text = 0;
           *text = 0x00;
-          y_text += 24; // Move to next line (approx line height for 18pt font)
+          y_text += font_size + 6; // Move to next line (line height scales with font size)
           // Draw cursor on new line
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, font_size);
           XFlush(d);
         }
         else if (key == XK_BackSpace && l_text > 0)
@@ -1794,10 +1834,11 @@ int main()
           text[l_text] = 0x00;
           XClearWindow(d, w);
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, font_size);
           XFlush(d);
         }
-        else if (n > 0 && (unsigned char)ltext[0] >= 32 && l_text + n < sizeof(text) - 1)
+        else if (n > 0 && (unsigned char)ltext[0] >= 32 && l_text + n < sizeof(text) - 1 &&
+                 !(e.xkey.state & ControlMask))
         {
           // Accept any printable character (including UTF-8 multi-byte)
           // First clear previous cursor
@@ -1805,7 +1846,7 @@ int main()
           XCopyArea(d, textPixMap, w, gc, 0, 0, width, height, 0, 0);
           strcat(text, ltext);
           l_text += n;
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, font_size);
           XFlush(d);
         }
         if (e.xkey.keycode == 0x09)
@@ -1957,7 +1998,7 @@ int main()
           y_text = e.xbutton.y;
           t_text = 1;
           // Draw initial cursor
-          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, 18);
+          drawTextWithCursor(d, w, gc, fontset, x_text, y_text, text, font_size);
           XFlush(d);
         }
         else if (e.xkey.keycode == 65)

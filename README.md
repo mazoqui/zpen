@@ -15,6 +15,7 @@
   - [Line Style](#line-style)
   - [Shift Modifiers](#shift-modifiers)
   - [Pen Thickness](#pen-thickness)
+  - [Text Tool](#text-tool)
   - [Other](#other)
 - [Installation](#installation)
   - [Debian / Ubuntu (recommended)](#debian--ubuntu-recommended)
@@ -149,6 +150,16 @@
 - `0`: Reset to default thickness
 - Also works with numpad `+`, `-`, and `0`
 
+### Text Tool
+
+While the Text tool (`t`) is active and you are typing, the regular `+` / `-` / `0` keys are sent to the text buffer. Adjust the font size with the `Ctrl` modifier instead:
+
+- `Ctrl++`: Increase text font size (steps of 2 px)
+- `Ctrl+-`: Decrease text font size (steps of 2 px)
+- `Ctrl+0`: Reset text font size to default (18 px)
+- Font size range: 8 to 72 px
+- Also works with numpad `+`, `-`, and `0`
+
 ### Other
 
 - `n`: Add numbered step counter
@@ -163,7 +174,7 @@ Pre-built `.deb` packages are published on the [GitHub Releases](https://github.
 **Install the latest release:**
 
 ```bash
-cd /tmp && curl -LO https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb && sudo apt install ./zpen_latest_amd64.deb
+curl -L -o /tmp/zpen_latest_amd64.deb https://github.com/mazoqui/zpen/releases/latest/download/zpen_latest_amd64.deb && sudo apt install /tmp/zpen_latest_amd64.deb
 ```
 
 The URL above is a permanent redirect — it always resolves to the most recent release. To pin to a specific version, browse the [Releases page](https://github.com/mazoqui/zpen/releases) and grab the versioned `zpen_X.Y.Z-1_amd64.deb` instead.
@@ -447,6 +458,9 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 | **Thickness**  | `+`             | Increase pen thickness                                                 |
 |                | `-`             | Decrease pen thickness                                                 |
 |                | `0`             | Reset to default thickness                                             |
+| **Text size**  | `Ctrl++`        | Increase text font size (Text tool only)                               |
+|                | `Ctrl+-`        | Decrease text font size (Text tool only)                               |
+|                | `Ctrl+0`        | Reset text font size to default (Text tool only)                       |
 | **Actions**    | `Ctrl+Z`        | Undo                                                                   |
 |                | `Shift+Ctrl+Z`  | Redo                                                                   |
 |                | `u`             | Undo (legacy)                                                          |

@@ -1,3 +1,11 @@
+zpen (0.1.5-1) unstable; urgency=medium
+
+  * Text tool: runtime font-size control. Ctrl++/Ctrl+- adjust the font size
+    in 2 px steps (range 8–72 px); Ctrl+0 resets to the 18 px default. Works
+    with numpad +/-/0 as well. Line spacing now tracks the active font size.
+
+ -- Marco Aurélio Zoqui <marco@zoqui.com>  Wed, 13 May 2026 12:00:00 +0000
+
 zpen (0.1.4-1) unstable; urgency=medium
 
   * Bound `}` and `]` to the curly brace and square bracket tools, mirroring
