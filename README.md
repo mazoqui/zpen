@@ -4,6 +4,8 @@
 
 [![Latest release](https://img.shields.io/github/v/release/mazoqui/zpen?label=latest&color=brightgreen)](https://github.com/mazoqui/zpen/releases/latest) ![Language](https://img.shields.io/badge/Language-C-blue) ![Platform](https://img.shields.io/badge/Platform-Linux-green) ![License](https://img.shields.io/badge/License-MIT-red)
 
+![zPen demo](docs/4bb2b2cc.gif)
+
 ## Table of Contents
 
 - [Features](#features)
