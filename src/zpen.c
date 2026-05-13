@@ -952,11 +952,11 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
   int indicator_w = circle_size * 3;
   int indicator_right = start_x - circle_size / 2 - gap;
   int indicator_left = indicator_right - indicator_w;
-  // Clear previous indicator. Horizontal padding must cover any past CapRound
-  // overshoot (up to thickness_max/2 ~= 10 px) so shrinking the stroke fully
-  // erases the older, fatter rendering.
+  // Clear previous indicator. CapButt keeps the drawn pixels strictly inside
+  // [indicator_left, indicator_right], so a tight horizontal clear is enough
+  // — extending further right would erase the first color circle.
   XSetForeground(d, gc, 0x00000000);
-  XFillRectangle(d, w, gc, indicator_left - 12, y - 12, indicator_w + 24, 24);
+  XFillRectangle(d, w, gc, indicator_left - 2, y - 12, indicator_w + 4, 24);
   // Draw indicator in current color with current thickness and dash pattern.
   // CapButt keeps the line strictly within [indicator_left, indicator_right]
   // so the gap to the first color circle stays constant as thickness grows.

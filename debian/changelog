@@ -1,3 +1,11 @@
+zpen (0.1.7-1) unstable; urgency=medium
+
+  * Color palette: fix the first color circle (red) being erased by the new
+    stroke indicator's clear rectangle. The clear region is now tight around
+    the indicator's CapButt bounds, leaving the palette circles intact.
+
+ -- Marco Aurélio Zoqui <marco@zoqui.com>  Wed, 13 May 2026 19:00:00 +0000
+
 zpen (0.1.6-1) unstable; urgency=medium
 
   * Persistent preferences: the selected color, active tool, pen thickness,
