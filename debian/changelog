@@ -1,3 +1,18 @@
+zpen (0.1.6-1) unstable; urgency=medium
+
+  * Persistent preferences: the selected color, active tool, pen thickness,
+    line style (solid/dashed) and text font size are now saved to
+    ~/.zpen/config on exit and restored on the next launch.
+  * Color palette: added a short horizontal indicator to the left of the
+    first color showing the current pen thickness and dash pattern. The
+    indicator refreshes whenever thickness (+ / - / 0) or dash style (*)
+    changes.
+  * Color palette: the white selection ring around the active color is now
+    rendered at a fixed 1 px width and no longer scales with the pen
+    thickness/dash style.
+
+ -- Marco Aurélio Zoqui <marco@zoqui.com>  Wed, 13 May 2026 18:00:00 +0000
+
 zpen (0.1.5-1) unstable; urgency=medium
 
   * Text tool: runtime font-size control. Ctrl++/Ctrl+- adjust the font size

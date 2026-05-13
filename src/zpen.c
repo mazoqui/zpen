@@ -194,7 +194,7 @@ static int get_config_path(char *out_path, size_t out_size)
  * updated only when its key is present and the parsed value is within range,
  * so callers must initialize them to defaults first.
  */
-static void load_config(int *color_index, char *shape, int *thickness, int *font_size)
+static void load_config(int *color_index, char *shape, int *thickness, int *font_size, int *dashed)
 {
   char path[1024];
   if (get_config_path(path, sizeof(path)) != 0)
@@ -231,6 +231,10 @@ static void load_config(int *color_index, char *shape, int *thickness, int *font
       if (v >= 8 && v <= 72)
         *font_size = v;
     }
+    else if (strcmp(key, "dashed") == 0)
+    {
+      *dashed = (atoi(val) != 0);
+    }
   }
   fclose(f);
 }
@@ -238,7 +242,7 @@ static void load_config(int *color_index, char *shape, int *thickness, int *font
 /**
  * Persist the basic UI state to ~/.zpen/config so the next launch can restore it.
  */
-static void save_config(int color_index, char shape, int thickness, int font_size)
+static void save_config(int color_index, char shape, int thickness, int font_size, int dashed)
 {
   if (ensure_zpen_directory() == -1)
     return;
@@ -252,6 +256,7 @@ static void save_config(int color_index, char shape, int thickness, int font_siz
   fprintf(f, "shape=%c\n", shape);
   fprintf(f, "thickness=%d\n", thickness);
   fprintf(f, "font_size=%d\n", font_size);
+  fprintf(f, "dashed=%d\n", dashed ? 1 : 0);
   fclose(f);
 }
 
@@ -904,7 +909,7 @@ void drawCircle(Display *d, Window w, GC gc, int x0, int y0, int width)
 /**
  * draws the horizontal color palette at the bottom-right of the screen
  * */
-void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, unsigned long color_list[], int selected_color_index)
+void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_height, unsigned long color_list[], int selected_color_index, int thickness, int dashed)
 {
   int circle_size = 8; // Small circle size
   int gap = 4;         // Small gap between circles
@@ -942,6 +947,27 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
       XDrawArc(d, w, gc, x - circle_size / 2, y - circle_size / 2, circle_size, circle_size, 0, 360 * 64);
     }
   }
+
+  // Stroke-size / dash-pattern indicator to the left of the first color.
+  int indicator_w = circle_size * 3;
+  int indicator_right = start_x - circle_size / 2 - gap;
+  int indicator_left = indicator_right - indicator_w;
+  // Clear previous indicator. Horizontal padding must cover any past CapRound
+  // overshoot (up to thickness_max/2 ~= 10 px) so shrinking the stroke fully
+  // erases the older, fatter rendering.
+  XSetForeground(d, gc, 0x00000000);
+  XFillRectangle(d, w, gc, indicator_left - 12, y - 12, indicator_w + 24, 24);
+  // Draw indicator in current color with current thickness and dash pattern.
+  // CapButt keeps the line strictly within [indicator_left, indicator_right]
+  // so the gap to the first color circle stays constant as thickness grows.
+  XSetForeground(d, gc, color_list[selected_color_index]);
+  if (dashed)
+  {
+    char dp[] = {8, 6};
+    XSetDashes(d, gc, 0, dp, 2);
+  }
+  XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapButt, JoinMiter);
+  XDrawLine(d, w, gc, indicator_left, y, indicator_right, y);
 
   // Restore original GC state
   XSetForeground(d, gc, original_color);
@@ -1139,9 +1165,9 @@ void initUndo(Pixmap *p, Display *d, Window w, unsigned int width, unsigned int 
   }
 }
 
-void bye(Display *d, Window w, int color_index, char shape, int thickness, int font_size)
+void bye(Display *d, Window w, int color_index, char shape, int thickness, int font_size, int dashed)
 {
-  save_config(color_index, shape, thickness, font_size);
+  save_config(color_index, shape, thickness, font_size, dashed);
   XUndefineCursor(d, w);
   XCloseDisplay(d);
   exit(0);
@@ -1339,10 +1365,10 @@ int main()
   int roundedRect = 1;
   int thickness = THICKNESS;
   int font_size = TEXT_FONT_SIZE;
-  load_config(&color_index, &shape, &thickness, &font_size);
+  int dashed = 0;
+  load_config(&color_index, &shape, &thickness, &font_size, &dashed);
   prv_shape = shape;
   unsigned long color = color_list[color_index];
-  int dashed = 0;
   char dash_pattern[] = {8, 6}; // Dash pattern for dashed lines (8 pixels on, 6 pixels off)
   int drawing = 0;
   Path path = {0};
@@ -1405,7 +1431,9 @@ int main()
   // Create GC
   gc = XCreateGC(d, w, 0, NULL);
   XSetForeground(d, gc, color);
-  XSetLineAttributes(d, gc, thickness, LineSolid, CapRound, JoinMiter);
+  if (dashed)
+    XSetDashes(d, gc, 0, dash_pattern, 2);
+  XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
 
   XGCValues gcValuesPreDraw;
   gcValuesPreDraw.function = GXxor;
@@ -1488,7 +1516,7 @@ int main()
   initUndo(redoStack, d, w, width, height, vinfo.depth, UNDO_MAX);
 
   // Draw color palette before initializing undo stack so it's included in saved states
-  drawColorPalette(d, w, gc, width, height, color_list, color_index);
+  drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
   XSync(d, False); // Ensure palette is drawn before copying to undo stack
 
   // Initialize undo stack with background (including color palette)
@@ -1649,7 +1677,7 @@ int main()
           setShapeCursor(d, w, &cursor, shape);
           if (f_screenshot == 2 || f_screenshot == 4)
           {
-            bye(d, w, color_index, shape, thickness, font_size);
+            bye(d, w, color_index, shape, thickness, font_size, dashed);
           }
         }
         else
@@ -1966,7 +1994,7 @@ int main()
           if (skipNextEsc)
             skipNextEsc = 0;
           else
-            bye(d, w, color_index, shape, thickness, font_size);
+            bye(d, w, color_index, shape, thickness, font_size, dashed);
         }
         else if (e.xkey.keycode == 50)
         {
@@ -2096,21 +2124,21 @@ int main()
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, guideColor(color_list[color_index]));
-          drawColorPalette(d, w, gc, width, height, color_list, color_index);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
         }
         else if (e.xkey.keycode == 114)
         {
           color_index = (color_index + 1) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, guideColor(color_list[color_index]));
-          drawColorPalette(d, w, gc, width, height, color_list, color_index);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
         }
         else if (e.xkey.keycode == 113)
         {
           color_index = (color_index - 1 + MAX_COLORS) % MAX_COLORS;
           XSetForeground(d, gc, color_list[color_index]);
           XSetForeground(d, gcPreDraw, guideColor(color_list[color_index]));
-          drawColorPalette(d, w, gc, width, height, color_list, color_index);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
         }
         else if (e.xkey.keycode == 21 || e.xkey.keycode == 86)
         {
@@ -2120,6 +2148,7 @@ int main()
             thickness++;
             XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
             XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
+            drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
           }
         }
         else if (e.xkey.keycode == 20 || e.xkey.keycode == 82)
@@ -2130,6 +2159,7 @@ int main()
             thickness--;
             XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
             XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
+            drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
           }
         }
         else if (e.xkey.keycode == 19 || e.xkey.keycode == 90)
@@ -2138,6 +2168,7 @@ int main()
           thickness = THICKNESS;
           XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
           XSetLineAttributes(d, gcPreDraw, thickness > 2 ? thickness - 2 : 1, LineDoubleDash, CapRound, JoinMiter);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
         }
         else if (e.xkey.keycode == 63 || (e.xkey.keycode == 17 && (e.xkey.state & ShiftMask)))
         {
@@ -2146,6 +2177,7 @@ int main()
           if (dashed)
             XSetDashes(d, gc, 0, dash_pattern, 2);
           XSetLineAttributes(d, gc, thickness, dashed ? LineOnOffDash : LineSolid, CapRound, JoinMiter);
+          drawColorPalette(d, w, gc, width, height, color_list, color_index, thickness, dashed);
         }
         else if (klen == 1 && (kbuf[0] == '[' || kbuf[0] == ']'))
         {
@@ -2207,7 +2239,7 @@ int main()
           if (skipNextEsc)
             skipNextEsc = 0;
           else
-            bye(d, w, color_index, shape, thickness, font_size);
+            bye(d, w, color_index, shape, thickness, font_size, dashed);
         }
         else if (e.xkey.keycode == 50)
         {

@@ -85,6 +85,12 @@
   - Reset to default thickness with `0` key (regular or numpad).
   - Thickness range: 1 to 20 (default: 3).
 
+- **Stroke Indicator:**
+  - A short horizontal line is rendered to the left of the color palette,
+    drawn in the active color with the current thickness and dash pattern.
+  - Updates live as you change thickness (`+` / `-` / `0`) or toggle the
+    line style (`*`).
+
 - **Frozen Desktop:**
   - Captures a screenshot of the desktop at launch and uses it as a static background, preventing background UI changes from interfering with annotations.
 
@@ -93,6 +99,11 @@
   - Visual color palette displayed at bottom-right corner showing all available colors.
   - Selected color is highlighted with a filled circle and white border.
   - Enhanced navigation: Use arrow keys (`←`/`→`) or spacebar to cycle colors.
+- **Persisted Preferences:**
+  - Selected color, active tool, pen thickness, line style (solid/dashed),
+    and text font size are saved to `~/.zpen/config` on exit and restored
+    on the next launch, so zPen always reopens the way you left it.
+
 - **Step Counter:**
   - Display a step counter for drawings made with the freehand tool.
 
