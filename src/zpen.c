@@ -174,6 +174,88 @@ int ensure_zpen_directory()
 }
 
 /**
+ * Build the absolute path to the config file inside ~/.zpen.
+ * Returns 0 on success (path written into out_path), -1 on error.
+ */
+static int get_config_path(char *out_path, size_t out_size)
+{
+  char *dir = get_zpen_directory();
+  if (!dir)
+    return -1;
+  int n = snprintf(out_path, out_size, "%s/config", dir);
+  free(dir);
+  if (n < 0 || (size_t)n >= out_size)
+    return -1;
+  return 0;
+}
+
+/**
+ * Load saved configuration into the supplied locations. Each out-pointer is
+ * updated only when its key is present and the parsed value is within range,
+ * so callers must initialize them to defaults first.
+ */
+static void load_config(int *color_index, char *shape, int *thickness, int *font_size)
+{
+  char path[1024];
+  if (get_config_path(path, sizeof(path)) != 0)
+    return;
+  FILE *f = fopen(path, "r");
+  if (!f)
+    return;
+  char line[256];
+  while (fgets(line, sizeof(line), f))
+  {
+    char key[64], val[128];
+    if (sscanf(line, "%63[^=]=%127[^\n]", key, val) != 2)
+      continue;
+    if (strcmp(key, "color_index") == 0)
+    {
+      int v = atoi(val);
+      if (v >= 0 && v < MAX_COLORS)
+        *color_index = v;
+    }
+    else if (strcmp(key, "shape") == 0)
+    {
+      if (val[0] && strchr("plarcb{[", val[0]))
+        *shape = val[0];
+    }
+    else if (strcmp(key, "thickness") == 0)
+    {
+      int v = atoi(val);
+      if (v >= 1 && v <= 20)
+        *thickness = v;
+    }
+    else if (strcmp(key, "font_size") == 0)
+    {
+      int v = atoi(val);
+      if (v >= 8 && v <= 72)
+        *font_size = v;
+    }
+  }
+  fclose(f);
+}
+
+/**
+ * Persist the basic UI state to ~/.zpen/config so the next launch can restore it.
+ */
+static void save_config(int color_index, char shape, int thickness, int font_size)
+{
+  if (ensure_zpen_directory() == -1)
+    return;
+  char path[1024];
+  if (get_config_path(path, sizeof(path)) != 0)
+    return;
+  FILE *f = fopen(path, "w");
+  if (!f)
+    return;
+  fprintf(f, "color_index=%d\n", color_index);
+  fprintf(f, "shape=%c\n", shape);
+  fprintf(f, "thickness=%d\n", thickness);
+  fprintf(f, "font_size=%d\n", font_size);
+  fclose(f);
+}
+
+/**
  * Returns 1 if the `tesseract` binary is on PATH, 0 otherwise. Cached after
  * first call so the 'o' key handler can probe it cheaply on every press.
  */
@@ -830,10 +912,14 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
   int start_x = screen_width - palette_width - 4; // 4px margin from right edge
   int y = screen_height - 10;                     // Position from bottom edge (accounting for -35 window offset)
 
-  // Save current GC color
+  // Save current GC color and line attributes (the palette shares its GC with
+  // the pen, so we need to neutralize the user's thickness/dash settings while
+  // drawing the selection ring and restore them on the way out).
   XGCValues values;
-  XGetGCValues(d, gc, GCForeground, &values);
+  XGetGCValues(d, gc, GCForeground | GCLineWidth | GCLineStyle | GCCapStyle | GCJoinStyle, &values);
   unsigned long original_color = values.foreground;
+
+  XSetLineAttributes(d, gc, 1, LineSolid, CapButt, JoinMiter);
 
   for (int i = 0; i < MAX_COLORS; i++)
   {
@@ -857,8 +943,9 @@ void drawColorPalette(Display *d, Window w, GC gc, int screen_width, int screen_
     }
   }
 
-  // Restore original GC color
+  // Restore original GC state
   XSetForeground(d, gc, original_color);
+  XSetLineAttributes(d, gc, values.line_width, values.line_style, values.cap_style, values.join_style);
 }
 
 /**
@@ -1052,8 +1139,9 @@ void initUndo(Pixmap *p, Display *d, Window w, unsigned int width, unsigned int 
   }
 }
 
-void bye(Display *d, Window w)
+void bye(Display *d, Window w, int color_index, char shape, int thickness, int font_size)
 {
+  save_config(color_index, shape, thickness, font_size);
   XUndefineCursor(d, w);
   XCloseDisplay(d);
   exit(0);
@@ -1249,8 +1337,11 @@ int main()
   char prv_shape = shape;
   int skipNextEsc = 0;
   int roundedRect = 1;
-  unsigned long color = color_list[0];
   int thickness = THICKNESS;
+  int font_size = TEXT_FONT_SIZE;
+  load_config(&color_index, &shape, &thickness, &font_size);
+  prv_shape = shape;
+  unsigned long color = color_list[color_index];
   int dashed = 0;
   char dash_pattern[] = {8, 6}; // Dash pattern for dashed lines (8 pixels on, 6 pixels off)
   int drawing = 0;
@@ -1384,7 +1475,6 @@ int main()
   }
 
   // Create fontset for UTF-8 text rendering (size is runtime-adjustable via Ctrl++/Ctrl+-/Ctrl+0)
-  int font_size = TEXT_FONT_SIZE;
   XFontSet fontset = createTextFontSet(d, font_size);
 
   // Prepare undo/redo levels
@@ -1559,7 +1649,7 @@ int main()
           setShapeCursor(d, w, &cursor, shape);
           if (f_screenshot == 2 || f_screenshot == 4)
           {
-            bye(d, w);
+            bye(d, w, color_index, shape, thickness, font_size);
           }
         }
         else
@@ -1876,7 +1966,7 @@ int main()
           if (skipNextEsc)
             skipNextEsc = 0;
           else
-            bye(d, w);
+            bye(d, w, color_index, shape, thickness, font_size);
         }
         else if (e.xkey.keycode == 50)
         {
@@ -2117,7 +2207,7 @@ int main()
           if (skipNextEsc)
             skipNextEsc = 0;
           else
-            bye(d, w);
+            bye(d, w, color_index, shape, thickness, font_size);
         }
         else if (e.xkey.keycode == 50)
         {
